@@ -23,6 +23,12 @@ endif()
 
 include_directories(${LIBIIO_INCLUDE_DIRS})
 
+if(CMAKE_COMPILER_IS_GNUCXX)
+
+    add_definitions(-Wno-unused-parameter)
+
+endif(CMAKE_COMPILER_IS_GNUCXX)
+
 SOAPY_SDR_MODULE_UTIL(
     TARGET PlutSDRSupport
     SOURCES

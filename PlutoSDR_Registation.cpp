@@ -9,6 +9,7 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	iio_context *ctx;
 	iio_scan_context *scan_ctx;
 	iio_context_info **info;
+	SoapySDR::Kwargs options;
 
 	scan_ctx = iio_create_scan_context(NULL, 0);
 
@@ -17,13 +18,24 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	if(ret == 0){
 
 		ctx=iio_create_network_context(PLUTOSDR_DEFAULT_IP);
-		if(ctx == NULL)
+		if(ctx !=NULL){
+			options["backend"]="network";
+			options["hostname"]=PLUTOSDR_DEFAULT_IP;
+		}else{
 			ctx=iio_create_network_context(PLUTOSDR_DEFAULT_HOSTNAME);
-		if(ctx == NULL)
-			return results;
+			if(ctx !=NULL){
+				options["backend"]="network";
+				options["hostname"]=PLUTOSDR_DEFAULT_HOSTNAME;}
+			else{
+				return results;
+			}
+		}
+
 	}else if (ret == 1){
 
 		ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[0]));
+		options["backend"]="uri";
+		options["uri"]=iio_context_info_get_uri(info[0]);
 
 	}else{
 
@@ -31,7 +43,6 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 
 	}
 
-	SoapySDR::Kwargs options;
 	unsigned int nb_ctx_attrs = iio_context_get_attrs_count(ctx);
 	for (unsigned int i = 0; i < nb_ctx_attrs; i++){
 		const char *key, *value;
