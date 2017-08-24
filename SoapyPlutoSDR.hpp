@@ -36,24 +36,23 @@ class rx_streamer {
 
 		void channel_read(const struct iio_channel *chn, void *dst, size_t len);
 
-		void recv_thread();
-		bool overflow;
-		std::thread recv_thd;
+		void refill_thread();
+
+		std::thread refill_thd;
 		std::mutex mutex;
-		std::condition_variable cond;
+		std::condition_variable cond, cond2;
 		std::vector<iio_channel* > channel_list;
-		volatile bool thread_stopped;
+		volatile bool thread_stopped, please_refill_buffer;
 		iio_buffer  *buf;
 		iio_device  *dev;
-		
-		std::deque<int16_t> i_deque;
-		std::deque<int16_t> q_deque;
+
 		std::vector<int16_t> buffer;
 
 		size_t buffer_size;
-		size_t buffer_num;
-
-        uint32_t format;
+		size_t byte_offset;
+		size_t items_in_buffer;
+		
+		std::string format;
 
 };
 
@@ -259,5 +258,6 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 	private:
 
 		iio_context *ctx;
+		iio_device *dev;
 
 };
