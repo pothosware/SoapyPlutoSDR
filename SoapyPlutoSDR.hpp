@@ -1,5 +1,12 @@
 #include <iio.h>
-
+#include <vector>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <queue>
+#include <deque>
+#include <complex>
+#include <condition_variable>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
@@ -7,22 +14,55 @@
 #define PLUTOSDR_DEFAULT_IP "192.168.2.1"
 #define PLUTOSDR_DEFAULT_HOSTNAME "pluto.local"
 
+class rx_streamer {
+	public:
+		rx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		~rx_streamer();
+		size_t recv(void * const *buffs,
+				const size_t numElems,
+				int &flags,
+				long long &timeNs,
+				const long timeoutUs=100000);
+		int start(const int flags,
+				const long long timeNs,
+				const size_t numElems);
 
-typedef struct stream_cfg {
-	iio_device *dev=NULL;
-	iio_channel *phy_chn=NULL;
-	iio_channel *lo_chn=NULL;
-	iio_channel *i = NULL;
-	iio_channel *q = NULL;
-	iio_buffer * buffer= NULL;	
-	mutable long long bw_hz; // Analog banwidth in Hz
-	mutable long long fs_hz; // Baseband sample rate in Hz
-	mutable long long lo_hz; // Local oscillator frequency in Hz
-	mutable long long gain;
-	const char* rfport; // Port name
-	int direction;
-	bool activate;
-}stream_cfg;
+		int stop(const int flags,
+				const long long timeNs=100000);
+
+	private:
+
+		void set_buffer_size(const size_t _buffer_size);
+
+		void channel_read(const struct iio_channel *chn, void *dst, size_t len);
+
+		void recv_thread();
+		bool overflow;
+		std::thread recv_thd;
+		std::mutex mutex;
+		std::condition_variable cond;
+		std::vector<iio_channel* > channel_list;
+		volatile bool thread_stopped;
+		iio_buffer  *buf;
+		iio_device  *dev;
+		
+		std::deque<int16_t> i_deque;
+		std::deque<int16_t> q_deque;
+		std::vector<int16_t> buffer;
+
+		size_t buffer_size;
+		size_t buffer_num;
+
+        uint32_t format;
+
+};
+
+class tx_streamer {
+
+
+
+
+};
 
 
 
@@ -115,35 +155,6 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 				const long timeoutUs
 				);
 
-
-		int acquireReadBuffer(
-				SoapySDR::Stream *stream,
-				size_t &handle,
-				const void **buffs,
-				int &flags,
-				long long &timeNs,
-				const long timeoutUs = 100000);
-
-		void releaseReadBuffer(
-				SoapySDR::Stream *stream,
-				const size_t handle);
-
-		int acquireWriteBuffer(
-				SoapySDR::Stream *stream,
-				size_t &handle,
-				void **buffs,
-				const long timeoutUs = 100000);
-
-		void releaseWriteBuffer(
-				SoapySDR::Stream *stream,
-				const size_t handle,
-				const size_t numElems,
-				int &flags,
-				const long long timeNs = 0);
-
-		size_t getNumDirectAccessBuffers(SoapySDR::Stream *stream);
-
-		int getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const size_t handle, void **buffs);
 
 		/*******************************************************************
 		 * Settings API
@@ -242,13 +253,11 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 
 		std::vector<double> listBandwidths( const int direction, const size_t channel ) const;
-		
+
 
 
 	private:
-		iio_device *phy_dev;
+
 		iio_context *ctx;
-		stream_cfg rx_stream;
-                stream_cfg tx_stream;
 
 };

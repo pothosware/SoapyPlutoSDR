@@ -1,35 +1,28 @@
 #include "SoapyPlutoSDR.hpp"
 
 
-SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ){
+SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
+	ctx(nullptr){
 
 	if (args.count("label") != 0)
 		SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
 
-	if (args.count("backend") == 0)
-		throw std::runtime_error("no PlutoSDR device matches");
 
-	if(args.at("backend")=="network"){
+	if(args.count("uri") != 0) {
+
+		ctx = iio_create_context_from_uri(args.at("uri").c_str());
+
+	}else if(args.count("hostname")!=0){
 		ctx = iio_create_network_context(args.at("hostname").c_str());
-	}else if(args.at("backend")=="url"){
-		ctx = iio_create_context_from_uri(args.at("url").c_str());	
 	}else{
 		ctx = iio_create_default_context();
 	}
 
-	phy_dev=iio_context_find_device(ctx, "ad9361-phy");
-	rx_stream.dev = iio_context_find_device(ctx, "cf-ad9361-lpc");
-	tx_stream.dev =iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");	
+	if (ctx == NULL)
+		throw std::runtime_error("not device found");
 
-	rx_stream.phy_chn = iio_device_find_channel(phy_dev, "voltage0", false);
-	tx_stream.phy_chn = iio_device_find_channel(phy_dev, "voltage0", true);
-	rx_stream.lo_chn = iio_device_find_channel(phy_dev, "altvoltage0", true);
-	tx_stream.lo_chn = iio_device_find_channel(phy_dev, "altvoltage1", true);
+	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
 
-	rx_stream.direction=SOAPY_SDR_RX;
-	rx_stream.rfport = "A_BALANCED";
-	tx_stream.direction=SOAPY_SDR_TX;
-	tx_stream.rfport = "A";
 
 }
 
@@ -119,15 +112,30 @@ std::vector<std::string> SoapyPlutoSDR::listAntennas( const int direction, const
 
 void SoapyPlutoSDR::setAntenna( const int direction, const size_t channel, const std::string &name )
 {
-	/* TODO delete this function or throw if name != RX... */
+	if (direction == SOAPY_SDR_RX) {
+
+		iio_channel_attr_write(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false), "rf_port_select", name.c_str());
+	}
+
+	if (direction == SOAPY_SDR_TX) {
+
+		iio_channel_attr_write(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true), "rf_port_select", name.c_str());
+	
+	} 
 }
 
 
 std::string SoapyPlutoSDR::getAntenna( const int direction, const size_t channel ) const
 {
 	std::string options;
-	if(direction == SOAPY_SDR_RX) options=rx_stream.rfport;
-	if(direction == SOAPY_SDR_TX) options=tx_stream.rfport;
+
+	if (direction == SOAPY_SDR_RX) {
+		options = "A_BALANCED";
+	}
+	if (direction == SOAPY_SDR_TX) {
+	
+		options = "A";
+	}
 	return options;
 }
 
@@ -157,16 +165,12 @@ void SoapyPlutoSDR::setGainMode( const int direction, const size_t channel, cons
 
 		if(automatic) {
 
-			iio_channel_attr_write(rx_stream.phy_chn, "gain_control_mode", "slow_attack");
+			iio_channel_attr_write(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false), "gain_control_mode", "slow_attack");
 
 		}else{
 
-			iio_channel_attr_write(rx_stream.phy_chn, "gain_control_mode", "manual");
-			this->setGain(direction,channel,rx_stream.gain);
-
-
+			iio_channel_attr_write(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false), "gain_control_mode", "manual");
 		}
-
 
 	}
 }
@@ -180,15 +184,17 @@ bool SoapyPlutoSDR::getGainMode( const int direction, const size_t channel ) con
 
 void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const double value )
 {
+	long long gain = (long long) value;
+
 	if(direction==SOAPY_SDR_RX){
 
-		iio_channel_attr_write_longlong(rx_stream.phy_chn,"hardwaregain",rx_stream.gain);
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"hardwaregain", gain);
 
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		iio_channel_attr_write_longlong(tx_stream.phy_chn,"hardwaregain",tx_stream.gain);
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"hardwaregain", gain);
 
 	}
 
@@ -202,32 +208,27 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const st
 
 double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const std::string &name ) const
 {
-	long long gain;
+	long long gain = 0;
 
 	if(direction==SOAPY_SDR_RX){
 
-		if(iio_channel_attr_read_longlong(rx_stream.lo_chn,"hardwaregain",&gain )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"hardwaregain",&gain )!=0)
 			return 0;
-
-		rx_stream.gain = gain;
 
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		if(iio_channel_attr_read_longlong(tx_stream.lo_chn,"hardwaregain",&gain )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"hardwaregain",&gain )!=0)
 			return 0;
-
-		tx_stream.gain = gain;
-
 	}
-	return gain;
+	return double(gain);
 }
 
 SoapySDR::Range SoapyPlutoSDR::getGainRange( const int direction, const size_t channel, const std::string &name ) const
 {
 
-	return(SoapySDR::Range( 0, 0 ) );
+	return(SoapySDR::Range( 0, 50 ) );
 
 }
 
@@ -237,14 +238,15 @@ SoapySDR::Range SoapyPlutoSDR::getGainRange( const int direction, const size_t c
 
 void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args )
 {
+	long long freq = (long long)frequency;
 	if(direction==SOAPY_SDR_RX){
-		rx_stream.lo_hz = frequency;
-		iio_channel_attr_write_longlong(rx_stream.lo_chn,"frequency",rx_stream.lo_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "altvoltage0", true),"frequency", freq);
 	}
 
 	if(direction==SOAPY_SDR_TX){
-		tx_stream.lo_hz = frequency;
-		iio_channel_attr_write_longlong(tx_stream.lo_chn,"frequency",tx_stream.lo_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "altvoltage1", true),"frequency", freq);
 
 	}
 
@@ -256,19 +258,16 @@ double SoapyPlutoSDR::getFrequency( const int direction, const size_t channel, c
 
 	if(direction==SOAPY_SDR_RX){
 
-		if(iio_channel_attr_read_longlong(rx_stream.lo_chn,"frequency",&freq )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "altvoltage0", true),"frequency",&freq )!=0)
 			return 0;
-
-		rx_stream.lo_hz=freq;
 
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		if(iio_channel_attr_read_longlong(tx_stream.lo_chn,"frequency",&freq )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "altvoltage1", true),"frequency",&freq )!=0)
 			return 0;
 
-		tx_stream.lo_hz=freq;
 	}
 
 	return double(freq);
@@ -301,14 +300,16 @@ SoapySDR::RangeList SoapyPlutoSDR::getFrequencyRange( const int direction, const
  ******************************************************************/
 void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, const double rate )
 {
+	long long samplerate = rate;
+
 	if(direction==SOAPY_SDR_RX){
-		rx_stream.fs_hz = rate;
-		iio_channel_attr_write_longlong(rx_stream.phy_chn,"sampling_frequency",rx_stream.fs_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"sampling_frequency", samplerate);
 	}
 
 	if(direction==SOAPY_SDR_TX){
-		tx_stream.fs_hz = rate;
-		iio_channel_attr_write_longlong(tx_stream.phy_chn,"sampling_frequency",tx_stream.fs_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"sampling_frequency", samplerate);
 
 	}
 
@@ -320,17 +321,15 @@ double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel )
 
 	if(direction==SOAPY_SDR_RX){
 
-		if(iio_channel_attr_read_longlong(rx_stream.phy_chn,"sampling_frequency",&samplerate )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"sampling_frequency",&samplerate )!=0)
 			return 0;
-
-		rx_stream.fs_hz=samplerate;
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		if(iio_channel_attr_read_longlong(tx_stream.phy_chn,"sampling_frequency",&samplerate)!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"sampling_frequency",&samplerate)!=0)
 			return 0;
-		tx_stream.fs_hz=samplerate;
+
 	}
 
 
@@ -342,20 +341,23 @@ std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const s
 {
 	std::vector<double> options;
 
+	options.push_back(2.5e6);
+
 	return(options);
 
 }
 
 void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, const double bw )
 {
+	long long bandwidth = bw;
 	if(direction==SOAPY_SDR_RX){
-		rx_stream.bw_hz = bw;
-		iio_channel_attr_write_longlong(rx_stream.phy_chn,"rf_bandwidth",rx_stream.bw_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"rf_bandwidth", bandwidth);
 	}
 
 	if(direction==SOAPY_SDR_TX){
-		tx_stream.bw_hz = bw;
-		iio_channel_attr_write_longlong(tx_stream.phy_chn,"rf_bandwidth",tx_stream.bw_hz );
+
+		iio_channel_attr_write_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"rf_bandwidth", bandwidth);
 
 	}
 
@@ -367,17 +369,15 @@ double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) 
 
 	if(direction==SOAPY_SDR_RX){
 
-		if(iio_channel_attr_read_longlong(rx_stream.phy_chn,"rf_bandwidth",&bandwidth )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", false),"rf_bandwidth",&bandwidth )!=0)
 			return 0;
-		rx_stream.bw_hz=bandwidth;
 
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		if(iio_channel_attr_read_longlong(tx_stream.phy_chn,"rf_bandwidth",&bandwidth )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(iio_context_find_device(ctx, "ad9361-phy"), "voltage0", true),"rf_bandwidth",&bandwidth )!=0)
 			return 0;
-		tx_stream.bw_hz=bandwidth;
 	}
 
 	return double(bandwidth);
