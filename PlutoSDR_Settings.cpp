@@ -4,29 +4,29 @@
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	ctx(nullptr){
 
-	if (args.count("label") != 0)
-		SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
+		if (args.count("label") != 0)
+			SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
 
 
-	if(args.count("uri") != 0) {
+		if(args.count("uri") != 0) {
 
-		ctx = iio_create_context_from_uri(args.at("uri").c_str());
+			ctx = iio_create_context_from_uri(args.at("uri").c_str());
 
-	}else if(args.count("hostname")!=0){
-		ctx = iio_create_network_context(args.at("hostname").c_str());
-	}else{
-		ctx = iio_create_default_context();
+		}else if(args.count("hostname")!=0){
+			ctx = iio_create_network_context(args.at("hostname").c_str());
+		}else{
+			ctx = iio_create_default_context();
+		}
+
+		if (ctx == NULL)
+			throw std::runtime_error("not device found");
+
+		dev = iio_context_find_device(ctx, "ad9361-phy");
+
+		this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
+		this->setAntenna(SOAPY_SDR_TX, 0, "A");
+
 	}
-
-	if (ctx == NULL)
-		throw std::runtime_error("not device found");
-
-	dev = iio_context_find_device(ctx, "ad9361-phy");
-
-	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
-
-
-}
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
@@ -122,7 +122,7 @@ void SoapyPlutoSDR::setAntenna( const int direction, const size_t channel, const
 	if (direction == SOAPY_SDR_TX) {
 
 		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", true), "rf_port_select", name.c_str());
-	
+
 	} 
 }
 
@@ -135,7 +135,7 @@ std::string SoapyPlutoSDR::getAntenna( const int direction, const size_t channel
 		options = "A_BALANCED";
 	}
 	if (direction == SOAPY_SDR_TX) {
-	
+
 		options = "A";
 	}
 	return options;
@@ -220,6 +220,7 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 	}
 
 	if(direction==SOAPY_SDR_TX){
+
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain",&gain )!=0)
 			return 0;

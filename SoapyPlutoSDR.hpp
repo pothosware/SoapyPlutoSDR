@@ -3,9 +3,6 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <queue>
-#include <deque>
-#include <complex>
 #include <condition_variable>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Logger.hpp>
@@ -43,24 +40,34 @@ class rx_streamer {
 		std::condition_variable cond, cond2;
 		std::vector<iio_channel* > channel_list;
 		volatile bool thread_stopped, please_refill_buffer;
-		iio_buffer  *buf;
 		iio_device  *dev;
 
 		std::vector<int16_t> buffer;
-
 		size_t buffer_size;
 		size_t byte_offset;
 		size_t items_in_buffer;
-		
+		iio_buffer  *buf;
 		std::string format;
 
 };
 
 class tx_streamer {
 
+	public:
+		tx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		~tx_streamer();
+		int send(const void * const *buffs,const size_t numElems,int &flags,const long long timeNs,const long timeoutUs );
 
+	private:
 
-
+		void channel_write(iio_channel *chn,const void *src, size_t len);
+		std::vector<iio_channel* > channel_list;
+		iio_device  *dev;
+		std::vector<int16_t> buffer;
+		std::string format;
+		size_t buffer_size;
+		bool cyclic;
+		iio_buffer  *buf;
 };
 
 
