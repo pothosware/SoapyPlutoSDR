@@ -4,7 +4,14 @@
 cmake_minimum_required(VERSION 2.8.9)
 project(SoapyPlutoSDR CXX)
 
-find_package(SoapySDR NO_MODULE)
+# select build type to get optimization flags
+if(NOT CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE "Release")
+   message(STATUS "Build type not specified: defaulting to release.")
+endif(NOT CMAKE_BUILD_TYPE)
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
+
+find_package(SoapySDR "0.4.0" NO_MODULE)
  if (NOT SoapySDR_FOUND) 
     message(FATAL_ERROR "Soapy SDR development files not found...") 
  endif () 
@@ -23,8 +30,6 @@ endif()
 
 include_directories(${LIBIIO_INCLUDE_DIRS})
 
-find_package(Threads)
-
 #enable c++11 features
 if(CMAKE_COMPILER_IS_GNUCXX)
 
@@ -37,10 +42,15 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
     endif()
 
-    #disable warnings for unused parameters
-    add_definitions(-Wno-unused-parameter)
+    #Thread support enabled (not the same as -lpthread)
+    list(APPEND SoapySDR_LIBRARIES -pthread)
 
 endif(CMAKE_COMPILER_IS_GNUCXX)
+
+#enable c++11 extensions for OSX
+if (APPLE)
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wc++11-extensions")
+endif(APPLE)
 
 ########################################################################
 # Find libad9361
@@ -56,13 +66,11 @@ if (LIBAD9361_FOUND)
 endif()
 
 
-
-
 SOAPY_SDR_MODULE_UTIL(
     TARGET PlutSDRSupport
     SOURCES
     PlutoSDR_Registation.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
-    LIBRARIES ${LIBIIO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${LIBAD9361_LIBRARIES}
+    LIBRARIES ${LIBIIO_LIBRARIES} ${LIBAD9361_LIBRARIES}
 )
