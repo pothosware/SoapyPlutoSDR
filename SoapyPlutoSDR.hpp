@@ -48,6 +48,7 @@ class rx_streamer {
 		size_t items_in_buffer;
 		iio_buffer  *buf;
 		std::string format;
+		float lut[4096];
 
 };
 
@@ -266,5 +267,5 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 		iio_context *ctx;
 		iio_device *dev;
-
+		mutable std::mutex device_mutex;
 };

@@ -17,10 +17,9 @@ std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, co
 
 	std::vector<std::string> formats;
 
-	//	formats.push_back(SOAPY_SDR_CS8);
+	formats.push_back(SOAPY_SDR_CS8);
 	formats.push_back(SOAPY_SDR_CS16);
 	formats.push_back(SOAPY_SDR_CF32);
-	//	formats.push_back(SOAPY_SDR_CF64);
 
 	return formats;
 
@@ -45,6 +44,8 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 		const std::vector<size_t> &channels,
 		const SoapySDR::Kwargs &args )
 {
+	std::lock_guard<std::mutex> lock(device_mutex);
+
 	PlutoSDRStream *stream = new PlutoSDRStream();
 
 	if(direction ==SOAPY_SDR_RX){	
@@ -64,6 +65,7 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
+	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 	delete stream;
 
@@ -80,6 +82,7 @@ int SoapyPlutoSDR::activateStream(
 		const long long timeNs,
 		const size_t numElems )
 {
+	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
 	if (not stream->rx)
@@ -93,6 +96,7 @@ int SoapyPlutoSDR::deactivateStream(
 		const int flags,
 		const long long timeNs )
 {
+	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
 	if (not stream->rx)
@@ -145,9 +149,10 @@ rx_streamer::rx_streamer(const iio_context *ctx, const std::string &_format, con
 
 {
 	dev=iio_context_find_device(ctx, "cf-ad9361-lpc");
-	if(dev == NULL)
+	if (dev == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-lpc not found!");
 		throw std::runtime_error("cf-ad9361-lpc not found!");
-
+	}
 	channel_list.push_back(iio_device_find_channel(dev, "voltage0", false));
 	channel_list.push_back(iio_device_find_channel(dev, "voltage1", false));
 
@@ -160,6 +165,14 @@ rx_streamer::rx_streamer(const iio_context *ctx, const std::string &_format, con
 
 	format = _format;
 
+	if (format == SOAPY_SDR_CF32) {
+		const float scale = 1.0f / 2048.0f;
+		for (int i = 0; i < 4096; ++i)
+		{
+			lut[i] = (((i + 2048) % 4096) - 2048) * scale;
+		}
+	}
+		
 }
 
 rx_streamer::~rx_streamer() 
@@ -182,7 +195,7 @@ size_t rx_streamer::recv(void * const *buffs,
 
 	if (thread_stopped){
 
-		return -1;
+		return SOAPY_SDR_TIMEOUT;
 	}
 
 	if (!please_refill_buffer && !items_in_buffer) {
@@ -194,7 +207,7 @@ size_t rx_streamer::recv(void * const *buffs,
 		cond2.wait_for(lock,std::chrono::milliseconds(timeoutUs));
 
 		if (thread_stopped)
-			return -1; /* EOF */
+			return SOAPY_SDR_TIMEOUT;
 
 	}
 
@@ -213,10 +226,16 @@ size_t rx_streamer::recv(void * const *buffs,
 		}else if (format == SOAPY_SDR_CF32) {
 			float *samples_cf32 = (float *)buffs[0];
 			for (size_t j = 0; j < items; ++j) {
-				samples_cf32[j * 2 + i] = buffer[j]/2048.0;
+				samples_cf32[j * 2 + i] = lut[buffer[j] & 0x0FFF];
 			}
 		}
-
+		else if (format == SOAPY_SDR_CS8) {
+			int8_t *samples_cs8 = (int8_t *)buffs[0];
+			for (size_t j = 0; j < items; ++j) {
+				samples_cs8[j * 2 + i] = buffer[j] >> 4;
+			}
+		}
+		
 	}
 
 
@@ -243,6 +262,7 @@ int rx_streamer::start(const int flags,
 	if (buf) {
 		refill_thd = std::thread(&rx_streamer::refill_thread, this);
 	} else {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!\n");
 	}
 
@@ -266,7 +286,7 @@ int rx_streamer::stop(const int flags,
 
 	if (buf) {
 		iio_buffer_destroy(buf);
-		buf = NULL;
+		buf = nullptr;
 	}
 
 	return 0;
@@ -326,12 +346,14 @@ void rx_streamer::channel_read(const struct iio_channel *chn, void *dst, size_t 
 }
 
 
-tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(nullptr),buffer_size(16384),buf(nullptr)
+tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
+	dev(nullptr), buffer_size(16384), buf(nullptr)
 {
-	dev=iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
-	if(dev == NULL)
+	dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
+	if (dev == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-dds-core-lpc not found!");
 		throw std::runtime_error("cf-ad9361-dds-core-lpc not found!");
+	}
 	channel_list.push_back(iio_device_find_channel(dev, "voltage0", true));
 	channel_list.push_back(iio_device_find_channel(dev, "voltage1", true));
 
@@ -340,8 +362,10 @@ tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, cons
 		iio_channel_enable(channel_list[i]);
 	}
 	buf = iio_device_create_buffer(dev, buffer_size,false);
-	if (!buf)
-		throw std::runtime_error("Unable to create buffer: ");
+	if (!buf) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
+		throw std::runtime_error("Unable to create buffer!");
+	}
 	buffer.reserve(buffer_size);
 	buffer.resize(buffer_size);
 
@@ -383,22 +407,30 @@ int tx_streamer::send(	const void * const *buffs,
 			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
-
 			channel_write(channel_list[i],buffer.data(),items);
 
+		}
+		else if (format == SOAPY_SDR_CS8) {
+
+			int8_t *samples_cs8 = (int8_t *)buffs[0];
+			for (size_t j = 0; j < items; ++j) {
+				buffer[j] = (int16_t)(samples_cs8[j * 2 + i] <<4);
+			}
+			channel_write(channel_list[i], buffer.data(), items);
+		
 		}
 
 	}
 
-	int ret = iio_buffer_push(buf);
+	ssize_t ret = iio_buffer_push(buf);
 
 	if (ret < 0){
 
-		return -1;
+		return SOAPY_SDR_TIMEOUT;
 
 	}
 
-	return items;
+	return int(items);
 
 }
 
