@@ -380,7 +380,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 			float *samples_cf32 = (float *)buffs[0];
 			for (size_t j = 0; j < items; ++j) {
-				buffer[j]=(float)(samples_cf32[j*2+i]*2048);
+				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
 
 			channel_write(channel_list[i],buffer.data(),items);

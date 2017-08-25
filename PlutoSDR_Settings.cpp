@@ -1,5 +1,7 @@
 #include "SoapyPlutoSDR.hpp"
-
+#ifdef HAS_AD9361_IIO
+#include <ad9361.h>
+#endif
 
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	ctx(nullptr){
@@ -315,6 +317,11 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency", samplerate);
 
 	}
+	
+#ifdef HAS_AD9361_IIO
+	if(ad9361_set_bb_rate(dev,samplerate))
+		throw std::runtime_error("Unable to set BB rate");		
+#endif
 
 }
 

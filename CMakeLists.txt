@@ -42,6 +42,21 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
+########################################################################
+# Find libad9361
+########################################################################
+find_package(libad9361)
+
+if (LIBAD9361_FOUND)
+    message(STATUS "LIBAD9361_INCLUDE_DIRS: ${LIBAD9361_INCLUDE_DIRS}")
+    message(STATUS "LIBAD9361_LIBRARIES: ${LIBAD9361_LIBRARIES}")
+    message(STATUS "LIBAD9361_DEFINITIONS: ${LIBAD9361_DEFINITIONS}")
+    include_directories(${LIBAD9361_INCLUDE_DIRS})
+    add_definitions(-DHAS_AD9361_IIO)
+endif()
+
+
+
 
 SOAPY_SDR_MODULE_UTIL(
     TARGET PlutSDRSupport
@@ -49,5 +64,5 @@ SOAPY_SDR_MODULE_UTIL(
     PlutoSDR_Registation.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
-    LIBRARIES ${LIBIIO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
+    LIBRARIES ${LIBIIO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${LIBAD9361_LIBRARIES}
 )
