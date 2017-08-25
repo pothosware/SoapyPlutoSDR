@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator> 
+#include <algorithm> 
 
 struct PlutoSDRStream
 {

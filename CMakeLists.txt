@@ -11,7 +11,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
 
-find_package(SoapySDR "0.4.0" NO_MODULE)
+find_package(SoapySDR NO_MODULE)
  if (NOT SoapySDR_FOUND) 
     message(FATAL_ERROR "Soapy SDR development files not found...") 
  endif () 
@@ -45,6 +45,8 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     #Thread support enabled (not the same as -lpthread)
     list(APPEND SoapySDR_LIBRARIES -pthread)
 
+    #disable warnings for unused parameters
+    add_definitions(-Wno-unused-parameter)
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
 #enable c++11 extensions for OSX
