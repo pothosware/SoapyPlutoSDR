@@ -12,15 +12,21 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	SoapySDR::Kwargs options;
 
 	scan_ctx = iio_create_scan_context(NULL, 0);
-
+	char label_str[100];
 	//Skipping broken USB device
 	ret = iio_scan_context_get_info_list(scan_ctx, &info);
-
+	if(ret < 0) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to scan: %li\n", (long)ret);
+		iio_scan_context_destroy(scan_ctx);
+		return results;
+	}
+	options["device"] = "plutosdr";
 	if(ret == 0){
 
 		ctx=iio_create_network_context(PLUTOSDR_DEFAULT_IP);
 		if(ctx !=nullptr){
 			options["hostname"]=PLUTOSDR_DEFAULT_IP;
+			
 		}else{
 			ctx=iio_create_network_context(PLUTOSDR_DEFAULT_HOSTNAME);
 			if(ctx !=nullptr){
@@ -29,30 +35,24 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 				return results;
 			}
 		}
-
-	}else if (ret == 1){
-
-		ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[0]));
-		if (ctx != nullptr) 
-			options["uri"] = std::string(iio_context_info_get_uri(info[0]));
+	
+		sprintf(label_str, "%s #%d %s", options["device"].c_str(), 0, options["hostname"].c_str());
+		options["label"] = label_str;
+		results.push_back(options);
+		if (ctx != nullptr)iio_context_destroy(ctx);
 
 	}else{
-
-		//Multiple contexts found
-
-	}
-
-	unsigned int nb_ctx_attrs = iio_context_get_attrs_count(ctx);
-	for (unsigned int i = 0; i < nb_ctx_attrs; i++){
-		const char *key, *value;
-		iio_context_get_attr(ctx, i, &key, &value);
-		options[key]=value;
+		for (int i = 0; i < ret; i++) {
+			ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[i]));
+			if (ctx != nullptr) {
+				options["uri"] = std::string(iio_context_info_get_uri(info[i]));
+				sprintf(label_str, "%s #%d %s", options["device"].c_str(), i, options["uri"].c_str());
+				results.push_back(options);
+				if (ctx != nullptr)iio_context_destroy(ctx);
+			}
 
 	}
-
-	results.push_back(options);	
-
-	if (ctx!=nullptr)iio_context_destroy(ctx);
+	}
 
 	return results;
 }

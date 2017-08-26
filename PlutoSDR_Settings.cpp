@@ -45,21 +45,37 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
 std::string SoapyPlutoSDR::getDriverKey( void ) const
 {
-
-	return("PlutoSDR");
+	unsigned int  major, minor;
+	char git_tag[8];
+	iio_library_get_version(&major, &minor, git_tag);
+	char key_str[100];
+	sprintf(key_str, "Library version: %u.%u (git tag: %s)", major, minor, git_tag);
+	return(key_str);
 }
 
 std::string SoapyPlutoSDR::getHardwareKey( void ) const
 {
 
-	return("PlutoSDR");
+	unsigned int  major, minor;
+	char git_tag[8];
+	iio_context_get_version(ctx, &major, &minor, git_tag);
+	char key_str[100];
+	sprintf(key_str, "Backend version: %u.%u (git tag: %s)",major, minor, git_tag);
+	return(key_str);
 }
 
 SoapySDR::Kwargs SoapyPlutoSDR::getHardwareInfo( void ) const
 {
-
 	SoapySDR::Kwargs info;
 
+	unsigned int nb_ctx_attrs = iio_context_get_attrs_count(ctx);
+	for (unsigned int i = 0; i < nb_ctx_attrs; i++) {
+		const char *key, *value;
+		iio_context_get_attr(ctx, i, &key, &value);
+		info[key] = value;
+
+	}
+	
 	return info;
 }
 
