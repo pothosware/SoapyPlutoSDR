@@ -201,7 +201,8 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 	}
 
 	if(direction==SOAPY_SDR_TX){
-
+		
+		gain = 89 - gain;
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain", gain);
 
 	}
@@ -233,14 +234,16 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain",&gain )!=0)
 			return 0;
+		gain = gain + 89;
 	}
 	return double(gain);
 }
 
 SoapySDR::Range SoapyPlutoSDR::getGainRange( const int direction, const size_t channel, const std::string &name ) const
 {
-
-	return(SoapySDR::Range( 0, 72) );
+	if(direction==SOAPY_SDR_RX)
+		(SoapySDR::Range(0, 76));
+	return(SoapySDR::Range(0,89));
 
 }
 
@@ -360,7 +363,10 @@ double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel )
 std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const size_t channel ) const
 {
 	std::vector<double> options;
-	options.push_back(0.6e6);
+
+	if(direction==SOAPY_SDR_TX)
+		options.push_back(0.218e6);
+	options.push_back(0.521e6);
 	options.push_back(1e6);
 	options.push_back(2e6);
 	options.push_back(3e6);
@@ -413,7 +419,7 @@ double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) 
 std::vector<double> SoapyPlutoSDR::listBandwidths( const int direction, const size_t channel ) const
 {
 	std::vector<double> options;
-	options.push_back(0.6e6);
+	options.push_back(0.2e6);
 	options.push_back(1e6);
 	options.push_back(2e6);
 	options.push_back(3e6);
