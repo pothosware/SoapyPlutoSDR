@@ -153,13 +153,30 @@ rx_streamer::rx_streamer(const iio_context *ctx, const std::string &_format, con
 		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-lpc not found!");
 		throw std::runtime_error("cf-ad9361-lpc not found!");
 	}
-	channel_list.push_back(iio_device_find_channel(dev, "voltage0", false));
-	channel_list.push_back(iio_device_find_channel(dev, "voltage1", false));
+	unsigned int nb_channels = iio_device_get_channels_count(dev), i;
+	for (i = 0; i < nb_channels; i++)
+		iio_channel_disable(iio_device_get_channel(dev, i));
 
-	for(unsigned int i=0;i<channel_list.size(); ++i){
+	if (channels.empty()) {
 
-		iio_channel_enable(channel_list[i]);
+		for (i = 0; i < nb_channels; i++) {
+			struct iio_channel *chn = iio_device_get_channel(dev, i);
+			iio_channel_enable(chn);
+			channel_list.push_back(chn);
+		}
+
 	}
+	else {
+		for (i = 0; i < channels.size()*2; i++) {
+			struct iio_channel *chn = iio_device_get_channel(dev, i);
+
+			iio_channel_enable(chn);
+			channel_list.push_back(chn);
+		}
+	
+	
+	}
+
 	buffer.reserve(buffer_size);
 	buffer.resize(buffer_size);
 
@@ -214,23 +231,24 @@ size_t rx_streamer::recv(void * const *buffs,
 	size_t items = std::min(items_in_buffer,numElems);
 
 	buffer.resize(items);
-	for (unsigned int i = 0; i < 2; i++) {
+	for (unsigned int i = 0; i < channel_list.size(); i++) {
+		unsigned int index = i / 2;
 
 		channel_read(channel_list[i], buffer.data(), items * sizeof(int16_t));
 
 		if (format == SOAPY_SDR_CS16) {
-			int16_t *samples_cs16 = (int16_t *)buffs[0];
+			int16_t *samples_cs16 = (int16_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				samples_cs16[j*2+ i]=buffer[j];
+				samples_cs16[j*2 + i]=buffer[j];
 			}		
 		}else if (format == SOAPY_SDR_CF32) {
-			float *samples_cf32 = (float *)buffs[0];
+			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				samples_cf32[j * 2 + i] = lut[buffer[j] & 0x0FFF];
 			}
 		}
 		else if (format == SOAPY_SDR_CS8) {
-			int8_t *samples_cs8 = (int8_t *)buffs[0];
+			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				samples_cs8[j * 2 + i] = buffer[j] >> 4;
 			}
@@ -354,13 +372,29 @@ tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, cons
 		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-dds-core-lpc not found!");
 		throw std::runtime_error("cf-ad9361-dds-core-lpc not found!");
 	}
-	channel_list.push_back(iio_device_find_channel(dev, "voltage0", true));
-	channel_list.push_back(iio_device_find_channel(dev, "voltage1", true));
 
-	for(unsigned int i=0;i<channel_list.size(); ++i){
+	unsigned int nb_channels = iio_device_get_channels_count(dev), i;
+	for (i = 0; i < nb_channels; i++)
+		iio_channel_disable(iio_device_get_channel(dev, i));
 
-		iio_channel_enable(channel_list[i]);
+	if (channels.empty()) {
+
+		for (i = 0; i < nb_channels; i++) {
+			iio_channel *chn = iio_device_get_channel(dev, i);
+			iio_channel_enable(chn);
+			channel_list.push_back(chn);
+		}
+
 	}
+	else {
+		for (i = 0; i < channels.size() * 2; i++) {
+			iio_channel *chn = iio_device_get_channel(dev, i);
+			iio_channel_enable(chn);
+			channel_list.push_back(chn);
+		}
+
+	}
+
 	buf = iio_device_create_buffer(dev, buffer_size,false);
 	if (!buf) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
@@ -390,11 +424,11 @@ int tx_streamer::send(	const void * const *buffs,
 	size_t items = std::min(buffer_size,numElems);
 
 	buffer.resize(items);
-	for (unsigned int i = 0; i < 2; i++) {
-
+	for (unsigned int i = 0; i < channel_list.size(); i++) {
+		unsigned int index = i / 2;
 		if(format==SOAPY_SDR_CS16){
 
-			int16_t *samples_cs16 = (int16_t *)buffs[0];
+			int16_t *samples_cs16 = (int16_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=samples_cs16[j*2+i];
 			}
@@ -403,7 +437,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 		}else if(format==SOAPY_SDR_CF32){
 
-			float *samples_cf32 = (float *)buffs[0];
+			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
@@ -412,12 +446,11 @@ int tx_streamer::send(	const void * const *buffs,
 		}
 		else if (format == SOAPY_SDR_CS8) {
 
-			int8_t *samples_cs8 = (int8_t *)buffs[0];
+			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				buffer[j] = (int16_t)(samples_cs8[j * 2 + i] <<4);
+				buffer[j] = (int16_t)(samples_cs8[j*2 + i] <<4);
 			}
-			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));
-		
+			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));		
 		}
 
 	}
@@ -430,7 +463,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 	}
 
-	return int(items * sizeof(int16_t));
+	return (items);
 
 }
 
@@ -444,7 +477,5 @@ void tx_streamer::channel_write(iio_channel *chn,const void *src, size_t len){
 	for (dst_ptr = (uintptr_t) iio_buffer_first(buf, chn);
 			dst_ptr < buf_end && src_ptr + length <= end;
 			dst_ptr += buf_step, src_ptr += length)
-		iio_channel_convert_inverse(chn,
-				(void *) dst_ptr, (const void *) src_ptr);
-
+		iio_channel_convert_inverse(chn,(void *) dst_ptr, (const void *) src_ptr);
 }
