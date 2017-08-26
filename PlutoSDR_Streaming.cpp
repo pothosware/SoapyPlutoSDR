@@ -399,7 +399,7 @@ int tx_streamer::send(	const void * const *buffs,
 				buffer[j]=samples_cs16[j*2+i];
 			}
 
-			channel_write(channel_list[i],buffer.data(),items);
+			channel_write(channel_list[i],buffer.data(),items* sizeof(int16_t));
 
 		}else if(format==SOAPY_SDR_CF32){
 
@@ -407,7 +407,7 @@ int tx_streamer::send(	const void * const *buffs,
 			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
-			channel_write(channel_list[i],buffer.data(),items);
+			channel_write(channel_list[i],buffer.data(),items * sizeof(int16_t));
 
 		}
 		else if (format == SOAPY_SDR_CS8) {
@@ -416,7 +416,7 @@ int tx_streamer::send(	const void * const *buffs,
 			for (size_t j = 0; j < items; ++j) {
 				buffer[j] = (int16_t)(samples_cs8[j * 2 + i] <<4);
 			}
-			channel_write(channel_list[i], buffer.data(), items);
+			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));
 		
 		}
 
@@ -430,7 +430,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 	}
 
-	return int(items);
+	return int(items * sizeof(int16_t));
 
 }
 
