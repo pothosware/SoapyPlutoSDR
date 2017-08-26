@@ -66,8 +66,7 @@ class tx_streamer {
 		iio_device  *dev;
 		std::vector<int16_t> buffer;
 		std::string format;
-		size_t buffer_size;
-		bool cyclic;
+		std::mutex mutex;
 		iio_buffer  *buf;
 };
 

@@ -364,8 +364,8 @@ void rx_streamer::channel_read(const struct iio_channel *chn, void *dst, size_t 
 }
 
 
-tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
-	dev(nullptr), buffer_size(16384), buf(nullptr)
+tx_streamer::tx_streamer(const iio_context *ctx, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
+	dev(nullptr), buf(nullptr)
 {
 	dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
 	if (dev == nullptr) {
@@ -394,15 +394,7 @@ tx_streamer::tx_streamer(const iio_context *ctx, const std::string &format, cons
 		}
 
 	}
-
-	buf = iio_device_create_buffer(dev, buffer_size,false);
-	if (!buf) {
-		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
-		throw std::runtime_error("Unable to create buffer!");
-	}
-	buffer.reserve(buffer_size);
-	buffer.resize(buffer_size);
-
+	format = _format;
 }
 
 tx_streamer::~tx_streamer(){
@@ -421,36 +413,49 @@ int tx_streamer::send(	const void * const *buffs,
 		const long timeoutUs )
 
 {
-	size_t items = std::min(buffer_size,numElems);
+	std::lock_guard<std::mutex> lock(mutex);
 
-	buffer.resize(items);
+	if (buffer.size() != numElems) {
+		if (buf) 
+			iio_buffer_destroy(buf);
+
+		buffer.reserve(numElems);
+		buffer.resize(numElems);
+		buf = iio_device_create_buffer(dev, buffer.size(), false);
+		if (!buf) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
+			throw std::runtime_error("Unable to create buffer!");
+		}
+
+	}
+
 	for (unsigned int i = 0; i < channel_list.size(); i++) {
 		unsigned int index = i / 2;
 		if(format==SOAPY_SDR_CS16){
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
+			for (size_t j = 0; j < numElems; ++j) {
 				buffer[j]=samples_cs16[j*2+i];
 			}
 
-			channel_write(channel_list[i],buffer.data(),items* sizeof(int16_t));
+			channel_write(channel_list[i],buffer.data(), numElems * sizeof(int16_t));
 
 		}else if(format==SOAPY_SDR_CF32){
 
 			float *samples_cf32 = (float *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
+			for (size_t j = 0; j < numElems; ++j) {
 				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
-			channel_write(channel_list[i],buffer.data(),items * sizeof(int16_t));
+			channel_write(channel_list[i],buffer.data(), numElems * sizeof(int16_t));
 
 		}
 		else if (format == SOAPY_SDR_CS8) {
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
+			for (size_t j = 0; j < numElems; ++j) {
 				buffer[j] = (int16_t)(samples_cs8[j*2 + i] <<4);
 			}
-			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));		
+			channel_write(channel_list[i], buffer.data(), numElems * sizeof(int16_t));
 		}
 
 	}
@@ -459,11 +464,11 @@ int tx_streamer::send(	const void * const *buffs,
 
 	if (ret < 0){
 
-		return SOAPY_SDR_TIMEOUT;
+		return SOAPY_SDR_ERROR;
 
 	}
 
-	return (items);
+	return ret/ iio_buffer_step(buf);
 
 }
 
