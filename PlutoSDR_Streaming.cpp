@@ -50,13 +50,13 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 	if(direction ==SOAPY_SDR_RX){	
 
-		stream->rx = std::shared_ptr<rx_streamer>(new rx_streamer(ctx, format,channels, args));
+		stream->rx = std::shared_ptr<rx_streamer>(new rx_streamer(rx_dev, format,channels, args));
 
 	}
 
 	if (direction == SOAPY_SDR_TX) {
 
-		stream->tx = std::shared_ptr<tx_streamer>(new tx_streamer(ctx, format,channels, args));
+		stream->tx = std::shared_ptr<tx_streamer>(new tx_streamer(tx_dev, format,channels, args));
 	}
 
 	return reinterpret_cast<SoapySDR::Stream *>(stream);
@@ -144,11 +144,10 @@ int SoapyPlutoSDR::readStreamStatus(
 
 
 
-rx_streamer::rx_streamer(const iio_context *ctx, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(nullptr),buffer_size(16384),buf(nullptr)
+rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
+	dev(_dev),buffer_size(16384),buf(nullptr)
 
 {
-	dev=iio_context_find_device(ctx, "cf-ad9361-lpc");
 	if (dev == nullptr) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-lpc not found!");
 		throw std::runtime_error("cf-ad9361-lpc not found!");
@@ -340,7 +339,6 @@ void rx_streamer::refill_thread(){
 
 		items_in_buffer = (unsigned long)ret / iio_buffer_step(buf);
 		byte_offset = 0;
-
 		cond2.notify_one();
 
 	}
@@ -364,10 +362,10 @@ void rx_streamer::channel_read(const struct iio_channel *chn, void *dst, size_t 
 }
 
 
-tx_streamer::tx_streamer(const iio_context *ctx, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
-	dev(nullptr), buf(nullptr)
+tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
+	dev(_dev), buf(nullptr)
 {
-	dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
+
 	if (dev == nullptr) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-dds-core-lpc not found!");
 		throw std::runtime_error("cf-ad9361-dds-core-lpc not found!");

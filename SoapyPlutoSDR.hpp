@@ -13,7 +13,7 @@
 
 class rx_streamer {
 	public:
-		rx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		rx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
 		~rx_streamer();
 		size_t recv(void * const *buffs,
 				const size_t numElems,
@@ -40,7 +40,7 @@ class rx_streamer {
 		std::condition_variable cond, cond2;
 		std::vector<iio_channel* > channel_list;
 		volatile bool thread_stopped, please_refill_buffer;
-		iio_device  *dev;
+		const iio_device  *dev;
 
 		std::vector<int16_t> buffer;
 		size_t buffer_size;
@@ -50,12 +50,13 @@ class rx_streamer {
 		std::string format;
 		float lut[4096];
 
+
 };
 
 class tx_streamer {
 
 	public:
-		tx_streamer(const iio_context *ctx, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		tx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
 		~tx_streamer();
 		int send(const void * const *buffs,const size_t numElems,int &flags,const long long timeNs,const long timeoutUs );
 
@@ -63,7 +64,7 @@ class tx_streamer {
 
 		void channel_write(iio_channel *chn,const void *src, size_t len);
 		std::vector<iio_channel* > channel_list;
-		iio_device  *dev;
+		const iio_device  *dev;
 		std::vector<int16_t> buffer;
 		std::string format;
 		std::mutex mutex;
@@ -116,12 +117,9 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 				const std::vector<size_t> &channels = std::vector<size_t>(),
 				const SoapySDR::Kwargs &args = SoapySDR::Kwargs() );
 
-
 		void closeStream( SoapySDR::Stream *stream );
 
-
 		size_t getStreamMTU( SoapySDR::Stream *stream ) const;
-
 
 		int activateStream(
 				SoapySDR::Stream *stream,
@@ -129,12 +127,10 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 				const long long timeNs = 0,
 				const size_t numElems = 0 );
 
-
 		int deactivateStream(
 				SoapySDR::Stream *stream,
 				const int flags = 0,
 				const long long timeNs = 0 );
-
 
 		int readStream(
 				SoapySDR::Stream *stream,
@@ -143,7 +139,6 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 				int &flags,
 				long long &timeNs,
 				const long timeoutUs = 100000 );
-
 
 		int writeStream(
 				SoapySDR::Stream *stream,
@@ -266,5 +261,8 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 		iio_context *ctx;
 		iio_device *dev;
+		iio_device *rx_dev;
+		iio_device *tx_dev;
 		mutable std::mutex device_mutex;
+		bool decimation, interpolation;
 };
