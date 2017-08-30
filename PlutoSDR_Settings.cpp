@@ -7,31 +7,31 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	ctx(nullptr), dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false)
 {
 
-		if (args.count("label") != 0)
-			SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
+	if (args.count("label") != 0)
+		SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
 
 
-		if(args.count("uri") != 0) {
+	if(args.count("uri") != 0) {
 
-			ctx = iio_create_context_from_uri(args.at("uri").c_str());
+		ctx = iio_create_context_from_uri(args.at("uri").c_str());
 
-		}else if(args.count("hostname")!=0){
-			ctx = iio_create_network_context(args.at("hostname").c_str());
-		}else{
-			ctx = iio_create_default_context();
-		}
-
-		if (ctx == nullptr) {
-			SoapySDR_logf(SOAPY_SDR_ERROR, "not device found.");
-			throw std::runtime_error("not device found");
-		}
-		dev = iio_context_find_device(ctx, "ad9361-phy");
-		rx_dev = iio_context_find_device(ctx, "cf-ad9361-lpc");
-		tx_dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
-		this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
-		this->setAntenna(SOAPY_SDR_TX, 0, "A");
-
+	}else if(args.count("hostname")!=0){
+		ctx = iio_create_network_context(args.at("hostname").c_str());
+	}else{
+		ctx = iio_create_default_context();
 	}
+
+	if (ctx == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "not device found.");
+		throw std::runtime_error("not device found");
+	}
+	dev = iio_context_find_device(ctx, "ad9361-phy");
+	rx_dev = iio_context_find_device(ctx, "cf-ad9361-lpc");
+	tx_dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
+	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
+	this->setAntenna(SOAPY_SDR_TX, 0, "A");
+
+}
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
@@ -76,7 +76,7 @@ SoapySDR::Kwargs SoapyPlutoSDR::getHardwareInfo( void ) const
 		info[key] = value;
 
 	}
-	
+
 	return info;
 }
 
@@ -218,7 +218,7 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 	}
 
 	if(direction==SOAPY_SDR_TX){
-		
+
 		gain = 89 - gain;
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain", gain);
 
@@ -238,7 +238,7 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
 	long long gain = 0;
-	
+
 	if(direction==SOAPY_SDR_RX){
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"hardwaregain",&gain )!=0)
@@ -350,8 +350,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency", samplerate);
 
-		if(decimation)
-			iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false), "sampling_frequency", samplerate/8);
+		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false), "sampling_frequency", decimation?samplerate/8:samplerate);
 
 	}
 
@@ -368,11 +367,10 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency", samplerate);
-		if(interpolation)
-			iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true), "sampling_frequency", samplerate / 8);
+		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true), "sampling_frequency", interpolation?samplerate / 8:samplerate);
 
 	}
-	
+
 #ifdef HAS_AD9361_IIO
 	if(ad9361_set_bb_rate(dev,samplerate))
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to set BB rate.");	
