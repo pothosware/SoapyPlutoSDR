@@ -67,6 +67,8 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
+	if (stream->rx)
+		rx_stream.reset();
 	delete stream;
 
 }
