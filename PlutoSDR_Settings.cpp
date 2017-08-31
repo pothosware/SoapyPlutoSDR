@@ -35,6 +35,18 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
+	long long samplerate=0;
+	if(decimation){
+		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
+		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false),"sampling_frequency", samplerate);
+
+	}
+
+	if(interpolation){
+		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
+		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
+	}
+
 	if(ctx)iio_context_destroy(ctx);
 
 
@@ -341,7 +353,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 		decimation = false;
 		if (samplerate<(25e6 / 48)) {
 			if (samplerate * 8 < (25e6 / 48)) {
-				SoapySDR_logf(SOAPY_SDR_ERROR, "sample rate is not supported.");
+				SoapySDR_logf(SOAPY_SDR_CRITICAL, "sample rate is not supported.");
 			}
 
 			decimation = true;
@@ -358,7 +370,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 		interpolation = false;
 		if (samplerate<(25e6 / 48)) {
 			if (samplerate * 8 < (25e6 / 48)) {
-				SoapySDR_logf(SOAPY_SDR_ERROR, "sample rate is not supported.");
+				SoapySDR_logf(SOAPY_SDR_CRITICAL, "sample rate is not supported.");
 			}
 
 			interpolation = true;
@@ -385,18 +397,14 @@ double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel )
 
 	if(direction==SOAPY_SDR_RX){
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate )!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(rx_dev, "voltage0", false),"sampling_frequency",&samplerate )!=0)
 			return 0;
-		if (decimation)
-			return samplerate / 8;
 	}
 
 	if(direction==SOAPY_SDR_TX){
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate)!=0)
+		if(iio_channel_attr_read_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency",&samplerate)!=0)
 			return 0;
-		if (interpolation)
-			return samplerate / 8;
 
 	}
 
@@ -408,7 +416,7 @@ std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const s
 {
 	std::vector<double> options;
 
-	options.push_back(65104);//25M/48/8
+	options.push_back(65105);//25M/48/8+1
 	options.push_back(1e6);
 	options.push_back(2e6);
 	options.push_back(3e6);

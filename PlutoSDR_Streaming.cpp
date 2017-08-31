@@ -172,10 +172,35 @@ rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, con
 			iio_channel_enable(chn);
 			channel_list.push_back(chn);
 		}
-	
-	
+
+
 	}
 
+	if ( args.count( "bufflen" ) != 0 ){
+
+		try
+		{
+			size_t bufferLength = std::stoi(args.at("bufflen"));
+			if(bufferLength>0)
+				buffer_size=bufferLength;
+		}
+		catch (const std::invalid_argument &){}
+
+	}else{
+
+		long long samplerate;
+		uint32_t n=1,x;
+		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
+		x=uint32_t(samplerate);
+		if((x>>16)==0){n=n+16;x=x<<16;}
+		if((x>>24)==0){n=n+8;x=x<<8;}
+		if((x>>28)==0){n=n+4;x=x<<4;}
+		if((x>>30)==0){n=n+2;x=x<<2;}
+		n=n-(x>>31);
+		buffer_size=1<<(31-n-2);
+
+		SoapySDR_logf( SOAPY_SDR_INFO, "Auto setting Buffer Size: %d",buffer_size);
+	}
 	buffer.reserve(buffer_size);
 	buffer.resize(buffer_size);
 
@@ -188,7 +213,7 @@ rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, con
 			lut[i] = (((i + 2048) % 4096) - 2048) * scale;
 		}
 	}
-		
+
 }
 
 rx_streamer::~rx_streamer() 
@@ -252,7 +277,7 @@ size_t rx_streamer::recv(void * const *buffs,
 				samples_cs8[j * 2 + i] = buffer[j] >> 4;
 			}
 		}
-		
+
 	}
 
 
