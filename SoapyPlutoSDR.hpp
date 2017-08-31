@@ -27,6 +27,8 @@ class rx_streamer {
 		int stop(const int flags,
 				const long long timeNs=100000);
 
+		void set_buffer_size_by_samplerate(const size_t _samplerate);
+
 	private:
 
 		void set_buffer_size(const size_t _buffer_size);
@@ -265,4 +267,5 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *tx_dev;
 		mutable std::mutex device_mutex;
 		bool decimation, interpolation;
+		std::shared_ptr<rx_streamer> rx_stream;
 };

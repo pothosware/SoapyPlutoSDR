@@ -4,7 +4,7 @@
 #endif
 
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
-	ctx(nullptr), dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false)
+	ctx(nullptr), dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
 
 	if (args.count("label") != 0)
@@ -364,6 +364,8 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false), "sampling_frequency", decimation?samplerate/8:samplerate);
 
+		if(rx_stream)
+			rx_stream->set_buffer_size_by_samplerate(decimation ? samplerate / 8 : samplerate);
 	}
 
 	if(direction==SOAPY_SDR_TX){
@@ -423,6 +425,10 @@ std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const s
 	options.push_back(4e6);
 	options.push_back(5e6);
 	options.push_back(6e6);
+	options.push_back(7e6);
+	options.push_back(8e6);
+	options.push_back(9e6);
+	options.push_back(10e6);
 	return(options);
 
 }
@@ -476,6 +482,10 @@ std::vector<double> SoapyPlutoSDR::listBandwidths( const int direction, const si
 	options.push_back(4e6);
 	options.push_back(5e6);
 	options.push_back(6e6);
+	options.push_back(7e6);
+	options.push_back(8e6);
+	options.push_back(9e6);
+	options.push_back(10e6);
 	return(options);
 
 }
