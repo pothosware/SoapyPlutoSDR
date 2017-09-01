@@ -240,7 +240,6 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 
 void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const std::string &name, const double value )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 
 	this->setGain(direction,channel,value);
 
