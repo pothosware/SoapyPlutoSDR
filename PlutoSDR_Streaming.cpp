@@ -434,6 +434,7 @@ tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, con
 		}
 
 	}
+	buf = iio_device_create_buffer(dev, 4096, false);
 	format = _format;
 }
 
@@ -454,14 +455,17 @@ int tx_streamer::send(	const void * const *buffs,
 
 {
 	std::lock_guard<std::mutex> lock(mutex);
+	size_t items = std::min(4096, (int)numElems);
 
-	if (buffer.size() != numElems) {
+	if (buffer.size() != items) {
 		if (buf) 
-			iio_buffer_destroy(buf);
+		{
+			  //iio_buffer_destroy(buf);
+		}
 
-		buffer.reserve(numElems);
-		buffer.resize(numElems);
-		buf = iio_device_create_buffer(dev, buffer.size(), false);
+		buffer.reserve(items);
+		buffer.resize(items);
+		//buf = iio_device_create_buffer(dev, buffer.size(), false);
 		if (!buf) {
 			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 			throw std::runtime_error("Unable to create buffer!");
@@ -474,28 +478,28 @@ int tx_streamer::send(	const void * const *buffs,
 		if(format==SOAPY_SDR_CS16){
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
-			for (size_t j = 0; j < numElems; ++j) {
+			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=samples_cs16[j*2+i];
 			}
 
-			channel_write(channel_list[i],buffer.data(), numElems * sizeof(int16_t));
+			channel_write(channel_list[i],buffer.data(), items * sizeof(int16_t));
 
 		}else if(format==SOAPY_SDR_CF32){
 
 			float *samples_cf32 = (float *)buffs[index];
-			for (size_t j = 0; j < numElems; ++j) {
+			for (size_t j = 0; j < items; ++j) {
 				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
 			}
-			channel_write(channel_list[i],buffer.data(), numElems * sizeof(int16_t));
+			channel_write(channel_list[i],buffer.data(), items * sizeof(int16_t));
 
 		}
 		else if (format == SOAPY_SDR_CS8) {
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
-			for (size_t j = 0; j < numElems; ++j) {
+			for (size_t j = 0; j < items; ++j) {
 				buffer[j] = (int16_t)(samples_cs8[j*2 + i] <<4);
 			}
-			channel_write(channel_list[i], buffer.data(), numElems * sizeof(int16_t));
+			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));
 		}
 
 	}
@@ -508,7 +512,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 	}
 
-	return ret/ iio_buffer_step(buf);
+	return int(ret / iio_buffer_step(buf));
 
 }
 
