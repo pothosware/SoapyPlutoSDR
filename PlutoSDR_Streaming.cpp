@@ -435,6 +435,11 @@ tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, con
 
 	}
 	buf = iio_device_create_buffer(dev, 4096, false);
+	if (!buf) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
+		throw std::runtime_error("Unable to create buffer!");
+	}
+
 	format = _format;
 }
 
@@ -458,19 +463,8 @@ int tx_streamer::send(	const void * const *buffs,
 	size_t items = std::min(4096, (int)numElems);
 
 	if (buffer.size() != items) {
-		if (buf) 
-		{
-			  //iio_buffer_destroy(buf);
-		}
-
 		buffer.reserve(items);
 		buffer.resize(items);
-		//buf = iio_device_create_buffer(dev, buffer.size(), false);
-		if (!buf) {
-			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
-			throw std::runtime_error("Unable to create buffer!");
-		}
-
 	}
 
 	for (unsigned int i = 0; i < channel_list.size(); i++) {
