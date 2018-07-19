@@ -231,7 +231,7 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 
 	if(direction==SOAPY_SDR_TX){
 
-		gain = 89 - gain;
+		gain = gain - 89;
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain", gain);
 
 	}
