@@ -261,7 +261,6 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 	private:
 
-		iio_context *ctx;
 		iio_device *dev;
 		iio_device *rx_dev;
 		iio_device *tx_dev;
@@ -269,3 +268,4 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		bool decimation, interpolation;
 		std::shared_ptr<rx_streamer> rx_stream;
 };
+
