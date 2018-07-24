@@ -51,7 +51,11 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
 	}
 
-	if(ctx)iio_context_destroy(ctx);
+	if(ctx)
+	{
+		iio_context_destroy(ctx);
+		ctx = nullptr;
+	}
 
 
 }
@@ -274,7 +278,7 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 SoapySDR::Range SoapyPlutoSDR::getGainRange( const int direction, const size_t channel, const std::string &name ) const
 {
 	if(direction==SOAPY_SDR_RX)
-		(SoapySDR::Range(0, 76));
+		return(SoapySDR::Range(0, 73));
 	return(SoapySDR::Range(0,89));
 
 }
