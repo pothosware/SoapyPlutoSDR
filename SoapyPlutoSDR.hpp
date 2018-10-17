@@ -8,9 +8,6 @@
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
 
-#define PLUTOSDR_DEFAULT_IP "192.168.2.1"
-#define PLUTOSDR_DEFAULT_HOSTNAME "pluto.local"
-
 class rx_streamer {
 	public:
 		rx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);

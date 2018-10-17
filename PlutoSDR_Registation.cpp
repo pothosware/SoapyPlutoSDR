@@ -25,19 +25,14 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	options["device"] = "plutosdr";
 	if(ret == 0){
 
-		ctx=iio_create_network_context(PLUTOSDR_DEFAULT_IP);
-		if(ctx !=nullptr){
-			options["hostname"]=PLUTOSDR_DEFAULT_IP;
-			
-		}else{
-			ctx=iio_create_network_context(PLUTOSDR_DEFAULT_HOSTNAME);
-			if(ctx !=nullptr){
-				options["hostname"]=PLUTOSDR_DEFAULT_HOSTNAME;}
-			else{
-				return results;
-			}
-		}
-	
+		//no devices discovered, the user must specify a hostname
+		if (args.count("hostname") == 0) return results;
+
+		//try to connect at the specified hostname
+		ctx = iio_create_network_context(args.at("hostname"));
+		if(ctx = =nullptr) return results; //failed to connect
+		options["hostname"] = args.at("hostname");
+
 		sprintf(label_str, "%s #%d %s", options["device"].c_str(), 0, options["hostname"].c_str());
 		options["label"] = label_str;
 		results.push_back(options);
