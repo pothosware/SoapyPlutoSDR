@@ -29,7 +29,7 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 		if (args.count("hostname") == 0) return results;
 
 		//try to connect at the specified hostname
-		ctx = iio_create_network_context(args.at("hostname"));
+		ctx = iio_create_network_context(args.at("hostname").c_str());
 		if(ctx == nullptr) return results; //failed to connect
 		options["hostname"] = args.at("hostname");
 
