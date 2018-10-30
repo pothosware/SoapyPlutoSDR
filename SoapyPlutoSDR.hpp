@@ -196,6 +196,9 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		std::vector<std::string> listGains( const int direction, const size_t channel ) const;
 
 
+		bool hasGainMode(const int direction, const size_t channel) const;
+
+
 		void setGainMode( const int direction, const size_t channel, const bool automatic );
 
 
@@ -261,6 +264,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *dev;
 		iio_device *rx_dev;
 		iio_device *tx_dev;
+		bool gainMode;
 		mutable std::mutex device_mutex;
 		bool decimation, interpolation;
 		std::shared_ptr<rx_streamer> rx_stream;

@@ -8,6 +8,8 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
 
+	gainMode = false;
+
 	if (args.count("label") != 0)
 		SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
 
@@ -203,12 +205,20 @@ std::vector<std::string> SoapyPlutoSDR::listGains( const int direction, const si
 	return(options);
 }
 
+bool SoapyPlutoSDR::hasGainMode(const int direction, const size_t channel) const
+{
+	if (direction == SOAPY_SDR_RX)
+		return true;
+	return false;
+}
+
 void SoapyPlutoSDR::setGainMode( const int direction, const size_t channel, const bool automatic )
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
+	gainMode = automatic;
 	if(direction==SOAPY_SDR_RX){
 
-		if(automatic) {
+		if (gainMode) {
 
 			iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "gain_control_mode", "slow_attack");
 
@@ -220,11 +230,9 @@ void SoapyPlutoSDR::setGainMode( const int direction, const size_t channel, cons
 	}
 }
 
-bool SoapyPlutoSDR::getGainMode( const int direction, const size_t channel ) const
+bool SoapyPlutoSDR::getGainMode(const int direction, const size_t channel) const
 {
-	if(direction==SOAPY_SDR_RX)
-		return true;
-	return(false);
+	return gainMode;
 }
 
 void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const double value )
