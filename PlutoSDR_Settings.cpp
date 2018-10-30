@@ -66,35 +66,35 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
 std::string SoapyPlutoSDR::getDriverKey( void ) const
 {
-	unsigned int  major, minor;
-	char git_tag[8];
-	iio_library_get_version(&major, &minor, git_tag);
-	char key_str[100];
-	sprintf(key_str, "Library version: %u.%u (git tag: %s)", major, minor, git_tag);
-	return(key_str);
+	return "PlutoSDR";
 }
 
 std::string SoapyPlutoSDR::getHardwareKey( void ) const
 {
-
-	unsigned int  major, minor;
-	char git_tag[8];
-	iio_context_get_version(ctx, &major, &minor, git_tag);
-	char key_str[100];
-	sprintf(key_str, "Backend version: %u.%u (git tag: %s)",major, minor, git_tag);
-	return(key_str);
+	return "ADALM-PLUTO";
 }
 
 SoapySDR::Kwargs SoapyPlutoSDR::getHardwareInfo( void ) const
 {
 	SoapySDR::Kwargs info;
 
+	unsigned int major, minor;
+	char git_tag[8];
+	iio_library_get_version(&major, &minor, git_tag);
+	char lib_ver[100];
+	snprintf(lib_ver, 100, "%u.%u (git tag: %s)", major, minor, git_tag);
+	info["library_version"] = lib_ver;
+
+	iio_context_get_version(ctx, &major, &minor, git_tag);
+	char backend_ver[100];
+	snprintf(backend_ver, 100, "%u.%u (git tag: %s)", major, minor, git_tag);
+	info["backend_version"] = backend_ver;
+
 	unsigned int nb_ctx_attrs = iio_context_get_attrs_count(ctx);
 	for (unsigned int i = 0; i < nb_ctx_attrs; i++) {
 		const char *key, *value;
 		iio_context_get_attr(ctx, i, &key, &value);
 		info[key] = value;
-
 	}
 
 	return info;
