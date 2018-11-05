@@ -57,16 +57,18 @@ class tx_streamer {
 		tx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
 		~tx_streamer();
 		int send(const void * const *buffs,const size_t numElems,int &flags,const long long timeNs,const long timeoutUs );
+		int flush();
 
 	private:
+		int send_buf();
 
-		void channel_write(iio_channel *chn,const void *src, size_t len);
 		std::vector<iio_channel* > channel_list;
 		const iio_device  *dev;
-		std::vector<int16_t> buffer;
 		std::string format;
 		std::mutex mutex;
 		iio_buffer  *buf;
+		size_t buf_size;
+		size_t items_in_buf;
 };
 
 
