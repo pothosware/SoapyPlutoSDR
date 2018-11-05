@@ -41,7 +41,6 @@ class rx_streamer {
 		volatile bool thread_stopped, please_refill_buffer;
 		const iio_device  *dev;
 
-		std::vector<int16_t> buffer;
 		size_t buffer_size;
 		size_t byte_offset;
 		size_t items_in_buffer;
