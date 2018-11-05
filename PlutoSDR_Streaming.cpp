@@ -69,6 +69,8 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 	if (stream->rx)
 		rx_stream.reset();
+	if (stream->tx)
+		stream->tx->flush();
 	delete stream;
 
 }
@@ -100,6 +102,9 @@ int SoapyPlutoSDR::deactivateStream(
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
+
+	if (stream->tx)
+		stream->tx->flush();
 
 	if (not stream->rx)
 		return 0;
@@ -141,7 +146,7 @@ int SoapyPlutoSDR::readStreamStatus(
 		long long &timeNs,
 		const long timeoutUs)
 {
-	return 0;
+	return SOAPY_SDR_NOT_SUPPORTED;
 }
 
 void rx_streamer::set_buffer_size_by_samplerate(const size_t _samplerate) {
@@ -408,7 +413,9 @@ tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, con
 		channel_list.push_back(chn);
 	}
 
-	buf = iio_device_create_buffer(dev, 4096, false);
+	buf_size = 4096;
+	items_in_buf = 0;
+	buf = iio_device_create_buffer(dev, buf_size, false);
 	if (!buf) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!");
@@ -434,65 +441,95 @@ int tx_streamer::send(	const void * const *buffs,
 
 {
 	std::lock_guard<std::mutex> lock(mutex);
-	size_t items = std::min(4096, (int)numElems);
+	size_t items = std::min(buf_size - items_in_buf, numElems);
 
-	if (buffer.size() != items) {
-		buffer.reserve(items);
-		buffer.resize(items);
-	}
+	int16_t src = 0;
+	uintptr_t dst_ptr, src_ptr = (uintptr_t)&src;
+	ptrdiff_t buf_step = iio_buffer_step(buf);
 
 	for (unsigned int i = 0; i < channel_list.size(); i++) {
+		iio_channel *chn = channel_list[i];
 		unsigned int index = i / 2;
-		if(format==SOAPY_SDR_CS16){
+
+		dst_ptr = (uintptr_t)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
+
+		if (format == SOAPY_SDR_CS16) {
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				buffer[j]=samples_cs16[j*2+i];
+				src = samples_cs16[j*2+i];
+				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				dst_ptr += buf_step;
 			}
-
-			channel_write(channel_list[i],buffer.data(), items * sizeof(int16_t));
-
-		}else if(format==SOAPY_SDR_CF32){
+		}
+		else if (format == SOAPY_SDR_CF32) {
 
 			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				buffer[j]=(int16_t)(samples_cf32[j*2+i]*2048);
+				src = (int16_t)(samples_cf32[j*2+i]*2048);
+				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				dst_ptr += buf_step;
 			}
-			channel_write(channel_list[i],buffer.data(), items * sizeof(int16_t));
-
 		}
 		else if (format == SOAPY_SDR_CS8) {
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				buffer[j] = (int16_t)(samples_cs8[j*2 + i] <<4);
+				src = (int16_t)(samples_cs8[j*2 + i] <<4);
+				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				dst_ptr += buf_step;
 			}
-			channel_write(channel_list[i], buffer.data(), items * sizeof(int16_t));
+		}
+	}
+
+	items_in_buf += items;
+
+	if (items_in_buf == buf_size) {
+		int ret = send_buf();
+
+		if (ret < 0) {
+			return SOAPY_SDR_ERROR;
 		}
 
+		if ((size_t)ret != buf_size) {
+			return SOAPY_SDR_ERROR;
+		}
 	}
 
-	ssize_t ret = iio_buffer_push(buf);
-
-	if (ret < 0){
-
-		return SOAPY_SDR_ERROR;
-
-	}
-
-	return int(ret / iio_buffer_step(buf));
+	return items;
 
 }
 
-void tx_streamer::channel_write(iio_channel *chn,const void *src, size_t len){
+int tx_streamer::flush()
+{
+	std::lock_guard<std::mutex> lock(mutex);
 
-	uintptr_t dst_ptr, src_ptr = (uintptr_t) src, end = src_ptr + len;
-	unsigned int length = iio_channel_get_data_format(chn)->length / 8;
-	uintptr_t buf_end = (uintptr_t) iio_buffer_end(buf);
-	ptrdiff_t buf_step = iio_buffer_step(buf);
+	return send_buf();
 
-	for (dst_ptr = (uintptr_t) iio_buffer_first(buf, chn);
-			dst_ptr < buf_end && src_ptr + length <= end;
-			dst_ptr += buf_step, src_ptr += length)
-		iio_channel_convert_inverse(chn,(void *) dst_ptr, (const void *) src_ptr);
+}
+
+int tx_streamer::send_buf()
+{
+
+	if (items_in_buf > 0) {
+		if (items_in_buf < buf_size) {
+			ptrdiff_t buf_step = iio_buffer_step(buf);
+			uintptr_t buf_ptr = (uintptr_t)iio_buffer_start(buf) + items_in_buf * buf_step;
+			uintptr_t buf_end = (uintptr_t)iio_buffer_end(buf);
+
+			memset((void *)buf_ptr, 0, buf_end - buf_ptr);
+		}
+
+		ssize_t ret = iio_buffer_push(buf);
+		items_in_buf = 0;
+
+		if (ret < 0) {
+			return ret;
+		}
+
+		return int(ret / iio_buffer_step(buf));
+	}
+
+	return 0;
+
 }
