@@ -170,24 +170,13 @@ rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, con
 	for (i = 0; i < nb_channels; i++)
 		iio_channel_disable(iio_device_get_channel(dev, i));
 
-	if (channels.empty()) {
+	//default to channel 0, if none were specified
+	const std::vector<size_t> &channelIDs = channels.empty() ? std::vector<size_t>{0} : channels;
 
-		for (i = 0; i < nb_channels; i++) {
-			struct iio_channel *chn = iio_device_get_channel(dev, i);
-			iio_channel_enable(chn);
-			channel_list.push_back(chn);
-		}
-
-	}
-	else {
-		for (i = 0; i < channels.size()*2; i++) {
-			struct iio_channel *chn = iio_device_get_channel(dev, i);
-
-			iio_channel_enable(chn);
-			channel_list.push_back(chn);
-		}
-
-
+	for (i = 0; i < channelIDs.size() * 2; i++) {
+		struct iio_channel *chn = iio_device_get_channel(dev, i);
+		iio_channel_enable(chn);
+		channel_list.push_back(chn);
 	}
 
 	if ( args.count( "bufflen" ) != 0 ){
@@ -417,23 +406,15 @@ tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, con
 	for (i = 0; i < nb_channels; i++)
 		iio_channel_disable(iio_device_get_channel(dev, i));
 
-	if (channels.empty()) {
+	//default to channel 0, if none were specified
+	const std::vector<size_t> &channelIDs = channels.empty() ? std::vector<size_t>{0} : channels;
 
-		for (i = 0; i < nb_channels; i++) {
-			iio_channel *chn = iio_device_get_channel(dev, i);
-			iio_channel_enable(chn);
-			channel_list.push_back(chn);
-		}
-
+	for (i = 0; i < channelIDs.size() * 2; i++) {
+		iio_channel *chn = iio_device_get_channel(dev, i);
+		iio_channel_enable(chn);
+		channel_list.push_back(chn);
 	}
-	else {
-		for (i = 0; i < channels.size() * 2; i++) {
-			iio_channel *chn = iio_device_get_channel(dev, i);
-			iio_channel_enable(chn);
-			channel_list.push_back(chn);
-		}
 
-	}
 	buf = iio_device_create_buffer(dev, 4096, false);
 	if (!buf) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
