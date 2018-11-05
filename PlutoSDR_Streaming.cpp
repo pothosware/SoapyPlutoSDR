@@ -89,6 +89,9 @@ int SoapyPlutoSDR::activateStream(
 	std::lock_guard<std::mutex> lock(device_mutex);
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
+	if (flags & ~SOAPY_SDR_END_BURST)
+		return SOAPY_SDR_NOT_SUPPORTED;
+
 	if (not stream->rx)
 		return 0;
 
@@ -484,7 +487,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 	items_in_buf += items;
 
-	if (items_in_buf == buf_size) {
+	if (items_in_buf == buf_size || (flags & SOAPY_SDR_END_BURST && numElems == items)) {
 		int ret = send_buf();
 
 		if (ret < 0) {
