@@ -27,7 +27,12 @@ std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, co
 
 std::string SoapyPlutoSDR::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
 {
-	fullScale = 2048;
+	if (direction == SOAPY_SDR_RX) {
+		fullScale = 2048; // RX expects 12 bit samples LSB aligned
+	}
+	else if (direction == SOAPY_SDR_TX) {
+		fullScale = 32768; // TX expects 12 bit samples MSB aligned
+	}
 	return SOAPY_SDR_CS16;
 }
 
@@ -456,6 +461,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 		dst_ptr = (uintptr_t)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
 
+		// note that TX expects samples MSB aligned, unlike RX which is LSB aligned
 		if (format == SOAPY_SDR_CS16) {
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
@@ -469,7 +475,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				src = (int16_t)(samples_cf32[j*2+i]*2048);
+				src = (int16_t)(samples_cf32[j*2+i] * 32767.999f); // 32767.999f (0x46ffffff) will ensure better distribution
 				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
 				dst_ptr += buf_step;
 			}
@@ -478,7 +484,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
-				src = (int16_t)(samples_cs8[j*2 + i] <<4);
+				src = (int16_t)(samples_cs8[j*2+i] << 8);
 				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
 				dst_ptr += buf_step;
 			}
