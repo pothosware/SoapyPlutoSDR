@@ -40,6 +40,8 @@ class rx_streamer {
 
 		void refill_thread();
 
+		bool has_direct_copy();
+
 		std::thread refill_thd;
 		std::mutex mutex;
 		std::condition_variable cond, cond2;
@@ -53,7 +55,7 @@ class rx_streamer {
 		iio_buffer  *buf;
 		const plutosdrStreamFormat format;
 		float lut[4096];
-
+		bool direct_copy;
 
 };
 
@@ -67,6 +69,7 @@ class tx_streamer {
 
 	private:
 		int send_buf();
+		bool has_direct_copy();
 
 		std::vector<iio_channel* > channel_list;
 		const iio_device  *dev;
@@ -75,8 +78,9 @@ class tx_streamer {
 		iio_buffer  *buf;
 		size_t buf_size;
 		size_t items_in_buf;
-};
+		bool direct_copy;
 
+};
 
 
 class SoapyPlutoSDR : public SoapySDR::Device{

@@ -283,6 +283,13 @@ size_t rx_streamer::recv(void * const *buffs,
 	uintptr_t src_ptr, dst_ptr = (uintptr_t)&dst;
 	ptrdiff_t buf_step = iio_buffer_step(buf);
 
+	if (direct_copy) {
+		// optimize for single RX, 2 channel (I/Q), same endianess direct copy
+		src_ptr = (uintptr_t)iio_buffer_start(buf) + byte_offset;
+		memcpy(buffs[0], (void *)src_ptr, 2 * sizeof(int16_t) * items);
+	}
+	else
+
 	for (unsigned int i = 0; i < channel_list.size(); i++) {
 		iio_channel *chn = channel_list[i];
 		unsigned int index = i / 2;
@@ -340,6 +347,8 @@ int rx_streamer::start(const int flags,
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!\n");
 	}
+
+	direct_copy = has_direct_copy();
 
 	return 0;
 
@@ -415,6 +424,29 @@ void rx_streamer::refill_thread(){
 	cond2.notify_all();
 }
 
+// return wether can we optimize for single RX, 2 channel (I/Q), same endianess direct copy
+bool rx_streamer::has_direct_copy()
+{
+
+	if (format != PLUTO_SDR_CS16
+			|| channel_list.size() != 2) // one RX with I/Q
+		return false;
+
+	ptrdiff_t buf_step = iio_buffer_step(buf);
+
+	if (buf_step != 2 * sizeof(int16_t))
+		return false;
+
+	if (iio_buffer_start(buf) != iio_buffer_first(buf, channel_list[0]))
+		return false;
+
+	int16_t test_dst, test_src = 0x1234;
+	iio_channel_convert(channel_list[0], (void *)&test_dst, (const void *)&test_src);
+
+	return test_src == test_dst;
+
+}
+
 
 tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
 	dev(_dev), format(_format), buf(nullptr)
@@ -445,6 +477,9 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!");
 	}
+
+	direct_copy = has_direct_copy();
+
 }
 
 tx_streamer::~tx_streamer(){
@@ -469,6 +504,13 @@ int tx_streamer::send(	const void * const *buffs,
 	int16_t src = 0;
 	uintptr_t dst_ptr, src_ptr = (uintptr_t)&src;
 	ptrdiff_t buf_step = iio_buffer_step(buf);
+
+	if (direct_copy) {
+		// optimize for single TX, 2 channel (I/Q), same endianess direct copy
+		dst_ptr = (uintptr_t)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
+		memcpy((void *)dst_ptr, buffs[0], 2 * sizeof(int16_t) * items);
+	}
+	else
 
 	for (unsigned int i = 0; i < channel_list.size(); i++) {
 		iio_channel *chn = channel_list[i];
@@ -555,5 +597,28 @@ int tx_streamer::send_buf()
 	}
 
 	return 0;
+
+}
+
+// return wether can we optimize for single TX, 2 channel (I/Q), same endianess direct copy
+bool tx_streamer::has_direct_copy()
+{
+
+	if (format != PLUTO_SDR_CS16
+			|| channel_list.size() != 2) // one TX with I/Q
+		return false;
+
+	ptrdiff_t buf_step = iio_buffer_step(buf);
+
+	if (buf_step != 2 * sizeof(int16_t))
+		return false;
+
+	if (iio_buffer_start(buf) != iio_buffer_first(buf, channel_list[0]))
+		return false;
+
+	int16_t test_dst, test_src = 0x1234;
+	iio_channel_convert_inverse(channel_list[0], (void *)&test_dst, (const void *)&test_src);
+
+	return test_src == test_dst;
 
 }
