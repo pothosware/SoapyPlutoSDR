@@ -53,15 +53,34 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 	PlutoSDRStream *stream = new PlutoSDRStream();
 
+	//check the format
+	plutosdrStreamFormat streamFormat;
+	if (format == SOAPY_SDR_CF32) {
+		SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32.");
+		streamFormat = PLUTO_SDR_CF32;
+	}
+	else if (format == SOAPY_SDR_CS16) {
+		SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16.");
+		streamFormat = PLUTO_SDR_CS16;
+	}
+	else if (format == SOAPY_SDR_CS8) {
+		SoapySDR_log(SOAPY_SDR_INFO, "Using format CS8.");
+		streamFormat = PLUTO_SDR_CS8;
+	}
+	else {
+		throw std::runtime_error(
+			"setupStream invalid format '" + format + "' -- Only CS8, CS16 and CF32 are supported by SoapyPlutoSDR module.");
+	}
+
 	if(direction ==SOAPY_SDR_RX){	
 
-		stream->rx = std::shared_ptr<rx_streamer>(new rx_streamer(rx_dev, format,channels, args));
+		stream->rx = std::shared_ptr<rx_streamer>(new rx_streamer(rx_dev, streamFormat, channels, args));
 		rx_stream = stream->rx;
 	}
 
 	if (direction == SOAPY_SDR_TX) {
 
-		stream->tx = std::shared_ptr<tx_streamer>(new tx_streamer(tx_dev, format,channels, args));
+		stream->tx = std::shared_ptr<tx_streamer>(new tx_streamer(tx_dev, streamFormat, channels, args));
 	}
 
 	return reinterpret_cast<SoapySDR::Stream *>(stream);
@@ -171,8 +190,8 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t _samplerate) {
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %d", buffer_size);
 }
 
-rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(_dev),buffer_size(16384),buf(nullptr)
+rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
+	dev(_dev), format(_format), buffer_size(16384), buf(nullptr)
 
 {
 	if (dev == nullptr) {
@@ -212,9 +231,7 @@ rx_streamer::rx_streamer(const iio_device *_dev, const std::string &_format, con
 	
 	}
 
-	format = _format;
-
-	if (format == SOAPY_SDR_CF32) {
+	if (format == PLUTO_SDR_CF32) {
 		const float scale = 1.0f / 2048.0f;
 		for (int i = 0; i < 4096; ++i)
 		{
@@ -272,14 +289,14 @@ size_t rx_streamer::recv(void * const *buffs,
 
 		src_ptr = (uintptr_t)iio_buffer_first(buf, chn) + byte_offset;
 
-		if (format == SOAPY_SDR_CS16) {
+		if (format == PLUTO_SDR_CS16) {
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
 				src_ptr += buf_step;
 				samples_cs16[j * 2 + i] = dst;
 			}		
-		}else if (format == SOAPY_SDR_CF32) {
+		}else if (format == PLUTO_SDR_CF32) {
 			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
@@ -287,7 +304,7 @@ size_t rx_streamer::recv(void * const *buffs,
 				samples_cf32[j * 2 + i] = lut[dst & 0x0FFF];
 			}
 		}
-		else if (format == SOAPY_SDR_CS8) {
+		else if (format == PLUTO_SDR_CS8) {
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
 				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
@@ -399,8 +416,8 @@ void rx_streamer::refill_thread(){
 }
 
 
-tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
-	dev(_dev), buf(nullptr)
+tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args) :
+	dev(_dev), format(_format), buf(nullptr)
 {
 
 	if (dev == nullptr) {
@@ -428,8 +445,6 @@ tx_streamer::tx_streamer(const iio_device *_dev, const std::string &_format, con
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!");
 	}
-
-	format = _format;
 }
 
 tx_streamer::~tx_streamer(){
@@ -462,7 +477,7 @@ int tx_streamer::send(	const void * const *buffs,
 		dst_ptr = (uintptr_t)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
 
 		// note that TX expects samples MSB aligned, unlike RX which is LSB aligned
-		if (format == SOAPY_SDR_CS16) {
+		if (format == PLUTO_SDR_CS16) {
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
@@ -471,7 +486,7 @@ int tx_streamer::send(	const void * const *buffs,
 				dst_ptr += buf_step;
 			}
 		}
-		else if (format == SOAPY_SDR_CF32) {
+		else if (format == PLUTO_SDR_CF32) {
 
 			float *samples_cf32 = (float *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {
@@ -480,7 +495,7 @@ int tx_streamer::send(	const void * const *buffs,
 				dst_ptr += buf_step;
 			}
 		}
-		else if (format == SOAPY_SDR_CS8) {
+		else if (format == PLUTO_SDR_CS8) {
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
 			for (size_t j = 0; j < items; ++j) {

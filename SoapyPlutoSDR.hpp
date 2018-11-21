@@ -8,9 +8,15 @@
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
 
+typedef enum plutosdrStreamFormat {
+	PLUTO_SDR_CF32,
+	PLUTO_SDR_CS16,
+	PLUTO_SDR_CS8
+} plutosdrStreamFormat;
+
 class rx_streamer {
 	public:
-		rx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		rx_streamer(const iio_device *dev, const plutosdrStreamFormat format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
 		~rx_streamer();
 		size_t recv(void * const *buffs,
 				const size_t numElems,
@@ -45,7 +51,7 @@ class rx_streamer {
 		size_t byte_offset;
 		size_t items_in_buffer;
 		iio_buffer  *buf;
-		std::string format;
+		const plutosdrStreamFormat format;
 		float lut[4096];
 
 
@@ -54,7 +60,7 @@ class rx_streamer {
 class tx_streamer {
 
 	public:
-		tx_streamer(const iio_device *dev, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
+		tx_streamer(const iio_device *dev, const plutosdrStreamFormat format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args);
 		~tx_streamer();
 		int send(const void * const *buffs,const size_t numElems,int &flags,const long long timeNs,const long timeoutUs );
 		int flush();
@@ -64,7 +70,7 @@ class tx_streamer {
 
 		std::vector<iio_channel* > channel_list;
 		const iio_device  *dev;
-		std::string format;
+		const plutosdrStreamFormat format;
 		std::mutex mutex;
 		iio_buffer  *buf;
 		size_t buf_size;
