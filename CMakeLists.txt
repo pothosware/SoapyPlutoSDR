@@ -71,7 +71,7 @@ endif()
 SOAPY_SDR_MODULE_UTIL(
     TARGET PlutSDRSupport
     SOURCES
-    PlutoSDR_Registation.cpp
+    PlutoSDR_Registration.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
     LIBRARIES ${LIBIIO_LIBRARIES} ${LIBAD9361_LIBRARIES}
