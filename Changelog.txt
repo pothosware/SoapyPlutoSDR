@@ -1,0 +1,4 @@
+Release 0.1.0 (2018-12-21)
+==========================
+
+- Initial release of Soapy PlutoSDR support module
