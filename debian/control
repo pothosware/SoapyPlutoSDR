@@ -1,0 +1,30 @@
+Source: soapyplutosdr
+Section: libs
+Priority: optional
+Maintainer: Josh Blum <josh@pothosware.com>
+Build-Depends:
+    debhelper (>= 9.0.0),
+    cmake,
+    libiio-dev,
+    libad9361-dev,
+    libsoapysdr-dev
+Standards-Version: 4.1.1
+Homepage: https://github.com/pothosware/SoapyPlutoSDR/wiki
+Vcs-Git: https://github.com/pothosware/SoapyPlutoSDR.git
+Vcs-Browser: https://github.com/pothosware/SoapyPlutoSDR
+
+Package: soapysdr0.7-module-plutosdr
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Soapy PlutoSDR - PlutoSDR device support for Soapy SDR.
+ A Soapy module that supports PlutoSDR devices within the Soapy API.
+
+Package: soapysdr-module-plutosdr
+Architecture: all
+Depends: soapysdr0.7-module-plutosdr, ${misc:Depends}
+Description: Soapy PlutoSDR - PlutoSDR device support for Soapy SDR.
+ A Soapy module that supports PlutoSDR devices within the Soapy API.
+ .
+ This is an empty dependency package that pulls in the PlutoSDR module
+ for the default version of libsoapysdr.
