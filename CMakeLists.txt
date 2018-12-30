@@ -69,7 +69,7 @@ endif()
 
 
 SOAPY_SDR_MODULE_UTIL(
-    TARGET PlutSDRSupport
+    TARGET PlutoSDRSupport
     SOURCES
     PlutoSDR_Registration.cpp
     PlutoSDR_Settings.cpp
