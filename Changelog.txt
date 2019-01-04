@@ -1,6 +1,7 @@
 Release 0.1.1 (pending)
 ==========================
 
+- Fix pthread link for SoapySDR upstream cmake changes
 - Fixed typo in spelling of PlutoSDR support module
 
 Release 0.1.0 (2018-12-21)

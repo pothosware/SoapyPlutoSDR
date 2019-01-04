@@ -43,7 +43,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     endif()
 
     #Thread support enabled (not the same as -lpthread)
-    list(APPEND SoapySDR_LIBRARIES -pthread)
+    list(APPEND LIBIIO_LIBRARIES -pthread)
 
     #disable warnings for unused parameters
     add_definitions(-Wno-unused-parameter)
