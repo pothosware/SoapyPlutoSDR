@@ -54,7 +54,6 @@ class rx_streamer {
 		size_t items_in_buffer;
 		iio_buffer  *buf;
 		const plutosdrStreamFormat format;
-		float lut[4096];
 		bool direct_copy;
 
 };
