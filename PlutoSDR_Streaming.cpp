@@ -378,15 +378,16 @@ int rx_streamer::stop(const int flags,
 	if (buf)
 		iio_buffer_cancel(buf);
 
-	if (!thread_stopped) {
-
 	std::unique_lock<std::mutex> lock(mutex);
+
+	if (!thread_stopped) {
 
 	please_refill_buffer = true;
 	cond.notify_all();
 	lock.unlock();
 
 	refill_thd.join();
+	lock.lock();
 
 	}
 
