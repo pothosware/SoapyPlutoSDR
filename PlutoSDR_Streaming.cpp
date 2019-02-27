@@ -191,7 +191,7 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t _samplerate) {
 }
 
 rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(_dev), format(_format), buffer_size(16384), buf(nullptr)
+	dev(_dev), buffer_size(16384), buf(nullptr), format(_format)
 
 {
 	if (dev == nullptr) {
