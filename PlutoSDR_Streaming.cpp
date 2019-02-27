@@ -237,14 +237,6 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 	
 	}
 
-	if (format == PLUTO_SDR_CF32) {
-		const float scale = 1.0f / 2048.0f;
-		for (int i = 0; i < 4096; ++i)
-		{
-			lut[i] = (((i + 2048) % 4096) - 2048) * scale;
-		}
-	}
-
 	thread_stopped = true;
 
 }
@@ -291,47 +283,83 @@ size_t rx_streamer::recv(void * const *buffs,
 
 	size_t items = std::min(items_in_buffer,numElems);
 
-	int16_t dst = 0;
-	uintptr_t src_ptr, dst_ptr = (uintptr_t)&dst;
 	ptrdiff_t buf_step = iio_buffer_step(buf);
 
 	if (direct_copy) {
 		// optimize for single RX, 2 channel (I/Q), same endianess direct copy
-		src_ptr = (uintptr_t)iio_buffer_start(buf) + byte_offset;
-		memcpy(buffs[0], (void *)src_ptr, 2 * sizeof(int16_t) * items);
-	}
-	else
-
-	for (unsigned int i = 0; i < channel_list.size(); i++) {
-		iio_channel *chn = channel_list[i];
-		unsigned int index = i / 2;
-
-		src_ptr = (uintptr_t)iio_buffer_first(buf, chn) + byte_offset;
+		// note that RX is 12 bits LSB aligned, i.e. fullscale 2048
+		uint8_t *src = (uint8_t *)iio_buffer_start(buf) + byte_offset;
+		int16_t const *src_ptr = (int16_t *)src;
 
 		if (format == PLUTO_SDR_CS16) {
-			int16_t *samples_cs16 = (int16_t *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
-				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
-				src_ptr += buf_step;
-				samples_cs16[j * 2 + i] = dst;
-			}		
-		}else if (format == PLUTO_SDR_CF32) {
-			float *samples_cf32 = (float *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
-				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
-				src_ptr += buf_step;
-				samples_cf32[j * 2 + i] = lut[dst & 0x0FFF];
+
+		   ::memcpy(buffs[0], src_ptr, 2 * sizeof(int16_t) * items);
+
+		}
+		else if (format == PLUTO_SDR_CF32) {
+
+			float *dst_cf32 = (float *)buffs[0];
+
+			for (size_t index = 0; index < items * 2; ++index) {
+				*dst_cf32 = float(*src_ptr) / 2048.0f;
+				src_ptr++;
+				dst_cf32++;
 			}
+
 		}
 		else if (format == PLUTO_SDR_CS8) {
-			int8_t *samples_cs8 = (int8_t *)buffs[index];
-			for (size_t j = 0; j < items; ++j) {
-				iio_channel_convert(chn, (void *)dst_ptr, (const void *)src_ptr);
-				src_ptr += buf_step;
-				samples_cs8[j * 2 + i] = dst >> 4;
+
+			int8_t *dst_cs8 = (int8_t *)buffs[0];
+
+			for (size_t index = 0; index < items * 2; index++) {
+				*dst_cs8 = int8_t(*src_ptr >> 4);
+				src_ptr++;
+				dst_cs8++;
 			}
 		}
+	}
+	else {
+		int16_t conv = 0, *conv_ptr = &conv;
 
+		for (unsigned int i = 0; i < channel_list.size(); i++) {
+			iio_channel *chn = channel_list[i];
+			unsigned int index = i / 2;
+
+			uint8_t *src = (uint8_t *)iio_buffer_first(buf, chn) + byte_offset;
+			int16_t const *src_ptr = (int16_t *)src;
+
+			if (format == PLUTO_SDR_CS16) {
+
+				int16_t *dst_cs16 = (int16_t *)buffs[index];
+
+				for (size_t j = 0; j < items; ++j) {
+					iio_channel_convert(chn, conv_ptr, src_ptr);
+					src_ptr += buf_step;
+					dst_cs16[j * 2 + i] = conv;
+				}
+			}
+			else if (format == PLUTO_SDR_CF32) {
+
+				float *dst_cf32 = (float *)buffs[index];
+
+				for (size_t j = 0; j < items; ++j) {
+					iio_channel_convert(chn, conv_ptr, src_ptr);
+					src_ptr += buf_step;
+					dst_cf32[j * 2 + i] = float(conv) / 2048.0f;
+				}
+			}
+			else if (format == PLUTO_SDR_CS8) {
+
+				int8_t *dst_cs8 = (int8_t *)buffs[index];
+
+				for (size_t j = 0; j < items; ++j) {
+					iio_channel_convert(chn, conv_ptr, src_ptr);
+					src_ptr += buf_step;
+					dst_cs8[j * 2 + i] = int8_t(conv >> 4);
+				}
+			}
+
+		}
 	}
 
 	items_in_buffer -= items;
@@ -367,6 +395,8 @@ int rx_streamer::start(const int flags,
 	}
 
 	direct_copy = has_direct_copy();
+
+	SoapySDR_logf(SOAPY_SDR_INFO, "Has direct RX copy: %d", (int)direct_copy);
 
 	return 0;
 
@@ -452,9 +482,7 @@ void rx_streamer::refill_thread(){
 // return wether can we optimize for single RX, 2 channel (I/Q), same endianess direct copy
 bool rx_streamer::has_direct_copy()
 {
-
-	if (format != PLUTO_SDR_CS16
-			|| channel_list.size() != 2) // one RX with I/Q
+	if (channel_list.size() != 2) // one RX with I + Q
 		return false;
 
 	ptrdiff_t buf_step = iio_buffer_step(buf);
@@ -466,7 +494,7 @@ bool rx_streamer::has_direct_copy()
 		return false;
 
 	int16_t test_dst, test_src = 0x1234;
-	iio_channel_convert(channel_list[0], (void *)&test_dst, (const void *)&test_src);
+	iio_channel_convert(channel_list[0], &test_dst, (const void *)&test_src);
 
 	return test_src == test_dst;
 
@@ -505,6 +533,8 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 
 	direct_copy = has_direct_copy();
 
+	SoapySDR_logf(SOAPY_SDR_INFO, "Has direct TX copy: %d", (int)direct_copy);
+
 }
 
 tx_streamer::~tx_streamer(){
@@ -527,13 +557,15 @@ int tx_streamer::send(	const void * const *buffs,
 	size_t items = std::min(buf_size - items_in_buf, numElems);
 
 	int16_t src = 0;
-	uintptr_t dst_ptr, src_ptr = (uintptr_t)&src;
+	int16_t const *src_ptr = &src;
+	uint8_t *dst_ptr;
 	ptrdiff_t buf_step = iio_buffer_step(buf);
 
-	if (direct_copy) {
+	if (direct_copy && format == PLUTO_SDR_CS16) {
 		// optimize for single TX, 2 channel (I/Q), same endianess direct copy
-		dst_ptr = (uintptr_t)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
-		memcpy((void *)dst_ptr, buffs[0], 2 * sizeof(int16_t) * items);
+		dst_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
+
+		memcpy(dst_ptr, buffs[0], 2 * sizeof(int16_t) * items);
 	}
 	else
 
@@ -541,33 +573,36 @@ int tx_streamer::send(	const void * const *buffs,
 		iio_channel *chn = channel_list[i];
 		unsigned int index = i / 2;
 
-		dst_ptr = (uintptr_t)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
+		dst_ptr = (uint8_t *)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
 
 		// note that TX expects samples MSB aligned, unlike RX which is LSB aligned
 		if (format == PLUTO_SDR_CS16) {
 
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
+
 			for (size_t j = 0; j < items; ++j) {
 				src = samples_cs16[j*2+i];
-				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
 		}
 		else if (format == PLUTO_SDR_CF32) {
 
 			float *samples_cf32 = (float *)buffs[index];
+
 			for (size_t j = 0; j < items; ++j) {
 				src = (int16_t)(samples_cf32[j*2+i] * 32767.999f); // 32767.999f (0x46ffffff) will ensure better distribution
-				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
 		}
 		else if (format == PLUTO_SDR_CS8) {
 
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
+
 			for (size_t j = 0; j < items; ++j) {
 				src = (int16_t)(samples_cs8[j*2+i] << 8);
-				iio_channel_convert_inverse(chn, (void *)dst_ptr, (const void *)src_ptr);
+				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
 		}
@@ -605,10 +640,10 @@ int tx_streamer::send_buf()
 	if (items_in_buf > 0) {
 		if (items_in_buf < buf_size) {
 			ptrdiff_t buf_step = iio_buffer_step(buf);
-			uintptr_t buf_ptr = (uintptr_t)iio_buffer_start(buf) + items_in_buf * buf_step;
-			uintptr_t buf_end = (uintptr_t)iio_buffer_end(buf);
+			uint8_t *buf_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * buf_step;
+			uint8_t *buf_end = (uint8_t *)iio_buffer_end(buf);
 
-			memset((void *)buf_ptr, 0, buf_end - buf_ptr);
+			memset(buf_ptr, 0, buf_end - buf_ptr);
 		}
 
 		ssize_t ret = iio_buffer_push(buf);
@@ -629,8 +664,7 @@ int tx_streamer::send_buf()
 bool tx_streamer::has_direct_copy()
 {
 
-	if (format != PLUTO_SDR_CS16
-			|| channel_list.size() != 2) // one TX with I/Q
+	if (channel_list.size() != 2) // one TX with I/Q
 		return false;
 
 	ptrdiff_t buf_step = iio_buffer_step(buf);
@@ -642,7 +676,7 @@ bool tx_streamer::has_direct_copy()
 		return false;
 
 	int16_t test_dst, test_src = 0x1234;
-	iio_channel_convert_inverse(channel_list[0], (void *)&test_dst, (const void *)&test_src);
+	iio_channel_convert_inverse(channel_list[0], &test_dst, (const void *)&test_src);
 
 	return test_src == test_dst;
 
