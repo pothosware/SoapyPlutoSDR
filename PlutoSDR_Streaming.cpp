@@ -149,6 +149,9 @@ int SoapyPlutoSDR::readStream(
 {
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
+	if (not stream->rx) {
+		return SOAPY_SDR_NOT_SUPPORTED;
+	}
 	return int(stream->rx->recv(buffs, numElems, flags, timeNs, timeoutUs));
 }
 
@@ -162,6 +165,9 @@ int SoapyPlutoSDR::writeStream(
 {
 	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
+	if (not stream->tx) {
+		return SOAPY_SDR_NOT_SUPPORTED;
+	}
 	return stream->tx->send(buffs,numElems,flags,timeNs,timeoutUs);;
 
 }
@@ -239,6 +245,8 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		}
 	}
 
+	thread_stopped = true;
+
 }
 
 rx_streamer::~rx_streamer() 
@@ -258,6 +266,10 @@ size_t rx_streamer::recv(void * const *buffs,
 {
 
 	std::unique_lock<std::mutex> lock(mutex);
+
+	if (!buf) {
+		return 0;
+	}
 
 	if (thread_stopped){
 
@@ -335,6 +347,10 @@ int rx_streamer::start(const int flags,
 {
 	std::unique_lock<std::mutex> lock(mutex);
 
+	if (!thread_stopped) {
+		return SOAPY_SDR_NOT_SUPPORTED;
+	}
+
 	items_in_buffer = 0;
 	please_refill_buffer = false;
 	thread_stopped = false;
@@ -362,6 +378,8 @@ int rx_streamer::stop(const int flags,
 	if (buf)
 		iio_buffer_cancel(buf);
 
+	if (!thread_stopped) {
+
 	std::unique_lock<std::mutex> lock(mutex);
 
 	please_refill_buffer = true;
@@ -370,13 +388,14 @@ int rx_streamer::stop(const int flags,
 
 	refill_thd.join();
 
+	}
+
 	if (buf) {
 		iio_buffer_destroy(buf);
 		buf = nullptr;
 	}
 
 	return 0;
-
 
 }
 
@@ -389,6 +408,7 @@ void rx_streamer::set_buffer_size(const size_t _buffer_size){
 			iio_buffer_destroy(buf);
 		}
 
+		items_in_buffer = 0;
 		buf = iio_device_create_buffer(dev, _buffer_size, false);
 		if (!buf) {
 			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
