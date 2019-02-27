@@ -462,11 +462,10 @@ void rx_streamer::refill_thread(){
 		while (!please_refill_buffer)
 			cond.wait(lock);
 
-		please_refill_buffer = false;
-
 		lock.unlock();
 		ret = iio_buffer_refill(buf);
 		lock.lock();
+		please_refill_buffer = false;
 		if (ret < 0)
 			break;
 
