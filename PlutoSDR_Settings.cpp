@@ -4,6 +4,7 @@
 #endif
 
 static iio_context *ctx = nullptr; 
+
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
@@ -158,6 +159,7 @@ std::vector<std::string> SoapyPlutoSDR::listAntennas( const int direction, const
 void SoapyPlutoSDR::setAntenna( const int direction, const size_t channel, const std::string &name )
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
+
 	if (direction == SOAPY_SDR_RX) {
 
 		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "rf_port_select", name.c_str());
@@ -264,6 +266,7 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const st
 double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const std::string &name ) const
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
+
 	long long gain = 0;
 
 	if(direction==SOAPY_SDR_RX){

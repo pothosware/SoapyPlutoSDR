@@ -5,12 +5,10 @@
 #include <cstring>
 #include <iterator> 
 #include <algorithm> 
+#include <chrono>
 
-struct PlutoSDRStream
-{
-	std::shared_ptr<rx_streamer> rx;
-	std::shared_ptr<tx_streamer> tx;
-};
+# define RX_STREAM_MTU   (131072)
+
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
 {
@@ -50,10 +48,6 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 		const std::vector<size_t> &channels,
 		const SoapySDR::Kwargs &args )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
-
-	PlutoSDRStream *stream = new PlutoSDRStream();
-
 	//check the format
 	plutosdrStreamFormat streamFormat;
 	if (format == SOAPY_SDR_CF32) {
@@ -77,36 +71,34 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 			"setupStream invalid format '" + format + "' -- Only CS8, CS12, CS16 and CF32 are supported by SoapyPlutoSDR module.");
 	}
 
+    std::lock_guard<std::mutex> lock(device_mutex);
+
 	if(direction ==SOAPY_SDR_RX){	
 
-		stream->rx = std::shared_ptr<rx_streamer>(new rx_streamer(rx_dev, streamFormat, channels, args));
-		rx_stream = stream->rx;
+        this->rx_stream = std::make_shared<rx_streamer>(rx_dev, streamFormat, channels, args);
 	}
 
 	if (direction == SOAPY_SDR_TX) {
 
-		stream->tx = std::shared_ptr<tx_streamer>(new tx_streamer(tx_dev, streamFormat, channels, args));
+        this->tx_stream = std::make_shared<tx_streamer>(tx_dev, streamFormat, channels, args);
 	}
 
-	return reinterpret_cast<SoapySDR::Stream *>(stream);
+	return reinterpret_cast<SoapySDR::Stream *>(this);
 
 }
 
 void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
-	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
-	if (stream->rx)
-		rx_stream.reset();
-	if (stream->tx)
-		stream->tx->flush();
-	delete stream;
 
+    //let it die peacefully
+    this->rx_stream = nullptr;
+    this->tx_stream = nullptr;
 }
 
 size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
 {
-	return 8196;
+	return RX_STREAM_MTU;
 }
 
 int SoapyPlutoSDR::activateStream(
@@ -114,17 +106,16 @@ int SoapyPlutoSDR::activateStream(
 		const int flags,
 		const long long timeNs,
 		const size_t numElems )
-{
-	std::lock_guard<std::mutex> lock(device_mutex);
-	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
-
+{	
 	if (flags & ~SOAPY_SDR_END_BURST)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
-	if (not stream->rx)
-		return 0;
+    if (this->rx_stream == nullptr)
+        return 0;
 
-	return stream->rx->start(flags,timeNs,numElems);
+    std::lock_guard<std::mutex> lock(device_mutex);
+
+	return this->rx_stream->start(flags,timeNs,numElems);
 }
 
 int SoapyPlutoSDR::deactivateStream(
@@ -132,16 +123,17 @@ int SoapyPlutoSDR::deactivateStream(
 		const int flags,
 		const long long timeNs )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
-	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
 
-	if (stream->tx)
-		stream->tx->flush();
+    if(this->tx_stream) {
+        this->tx_stream->flush();
+    }
 
-	if (not stream->rx)
-		return 0;
+    if (this->rx_stream == nullptr)
+        return 0;
 
-	return stream->rx->stop(flags,timeNs);
+    std::lock_guard<std::mutex> lock(device_mutex);
+
+	return this->rx_stream->stop(flags,timeNs);
 }
 
 int SoapyPlutoSDR::readStream(
@@ -152,12 +144,11 @@ int SoapyPlutoSDR::readStream(
 		long long &timeNs,
 		const long timeoutUs )
 {
-	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
-
-	if (not stream->rx) {
+	if (this->rx_stream == nullptr) {
 		return SOAPY_SDR_NOT_SUPPORTED;
 	}
-	return int(stream->rx->recv(buffs, numElems, flags, timeNs, timeoutUs));
+   
+	return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
 }
 
 int SoapyPlutoSDR::writeStream(
@@ -168,12 +159,12 @@ int SoapyPlutoSDR::writeStream(
 		const long long timeNs,
 		const long timeoutUs )
 {
-	PlutoSDRStream *stream = reinterpret_cast<PlutoSDRStream *>(handle);
-
-	if (not stream->tx) {
+   
+	if (this->tx_stream == nullptr) {
 		return SOAPY_SDR_NOT_SUPPORTED;
 	}
-	return stream->tx->send(buffs,numElems,flags,timeNs,timeoutUs);;
+
+  	return this->tx_stream->send(buffs,numElems,flags,timeNs,timeoutUs);;
 
 }
 
@@ -196,7 +187,9 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t _samplerate) {
 	if ((x >> 30) == 0) { n = n + 2; x = x << 2; }
 	n = n - (x >> 31);
 
-	this->set_buffer_size(std::max(1 << (31 - n - 2), 16384));
+	//this->set_buffer_size(std::max(1 << (31 - n - 2), 16384)); // too large for CubicSDR
+    //TODO: find smarter way w.r.t MTU and sample rate ?
+	this->set_buffer_size((size_t)(RX_STREAM_MTU));
 
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 }
@@ -241,14 +234,14 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		this->set_buffer_size_by_samplerate(samplerate);
 	
 	}
-
-	thread_stopped = true;
-
 }
 
 rx_streamer::~rx_streamer() 
 {
-	if (buf) { iio_buffer_destroy(buf); }
+	if (buf) {
+        iio_buffer_cancel(buf);
+        iio_buffer_destroy(buf); 
+    }
 
 	for(unsigned int i=0;i<channel_list.size(); ++i)
 		iio_channel_disable(channel_list[i]);
@@ -261,29 +254,27 @@ size_t rx_streamer::recv(void * const *buffs,
 		long long &timeNs,
 		const long timeoutUs)
 {
+    //
+	if (items_in_buffer <= 0) {
 
-	std::unique_lock<std::mutex> lock(mutex);
+       // auto before = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
-	if (!buf) {
-		return 0;
-	}
+	    if (!buf) {
+		    return 0;
+	    }
 
-	if (thread_stopped){
+		ssize_t ret = iio_buffer_refill(buf);
 
-		return SOAPY_SDR_TIMEOUT;
-	}
+        // auto after = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
-	if (!please_refill_buffer && !items_in_buffer) {
-		please_refill_buffer = true;
-		cond.notify_all();
-	}
-
-	while (please_refill_buffer) {
-		cond2.wait_for(lock,std::chrono::milliseconds(timeoutUs));
-
-		if (thread_stopped)
+		if (ret < 0)
 			return SOAPY_SDR_TIMEOUT;
 
+		items_in_buffer = (unsigned long)ret / iio_buffer_step(buf);
+
+        // SoapySDR_logf(SOAPY_SDR_INFO, "iio_buffer_refill took %d ms to refill %d items", (int)(after - before), items_in_buffer);
+
+		byte_offset = 0;
 	}
 
 	size_t items = std::min(items_in_buffer,numElems);
@@ -392,23 +383,15 @@ int rx_streamer::start(const int flags,
 		const long long timeNs,
 		const size_t numElems)
 {
-	std::unique_lock<std::mutex> lock(mutex);
-
-	if (!thread_stopped) {
-		return SOAPY_SDR_NOT_SUPPORTED;
-	}
+    //force proper stop before
+    stop(flags, timeNs);
 
 	items_in_buffer = 0;
-	please_refill_buffer = false;
-	thread_stopped = false;
+	
+    // re-create buffer 
+	buf = iio_device_create_buffer(dev, buffer_size, false);
 
 	if (!buf) {
-		buf = iio_device_create_buffer(dev, buffer_size, false);
-	}
-
-	if (buf) {
-		refill_thd = std::thread(&rx_streamer::refill_thread, this);
-	} else {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 		throw std::runtime_error("Unable to create buffer!\n");
 	}
@@ -424,22 +407,11 @@ int rx_streamer::start(const int flags,
 int rx_streamer::stop(const int flags,
 		const long long timeNs)
 {
-	if (buf)
-		iio_buffer_cancel(buf);
-
-	std::unique_lock<std::mutex> lock(mutex);
-
-	if (!thread_stopped) {
-
-	please_refill_buffer = true;
-	cond.notify_all();
-	lock.unlock();
-
-	refill_thd.join();
-	lock.lock();
-
-	}
-
+    //cancel first
+    if (buf) {
+        iio_buffer_cancel(buf);
+    }
+    //then destroy
 	if (buf) {
 		iio_buffer_destroy(buf);
 		buf = nullptr;
@@ -450,8 +422,6 @@ int rx_streamer::stop(const int flags,
 }
 
 void rx_streamer::set_buffer_size(const size_t _buffer_size){
-
-	std::unique_lock<std::mutex> lock(mutex);
 
 	if (!buf || this->buffer_size != _buffer_size) {
 		if (buf) {
@@ -469,32 +439,6 @@ void rx_streamer::set_buffer_size(const size_t _buffer_size){
 
 	this->buffer_size=_buffer_size;
 
-}
-
-void rx_streamer::refill_thread(){
-
-	std::unique_lock<std::mutex> lock(mutex);
-	ssize_t ret;
-
-	for (;;) {
-
-		while (!please_refill_buffer)
-			cond.wait(lock);
-
-		lock.unlock();
-		ret = iio_buffer_refill(buf);
-		lock.lock();
-		please_refill_buffer = false;
-		if (ret < 0)
-			break;
-
-		items_in_buffer = (unsigned long)ret / iio_buffer_step(buf);
-		byte_offset = 0;
-		cond2.notify_one();
-
-	}
-	thread_stopped = true;
-	cond2.notify_all();
 }
 
 // return wether can we optimize for single RX, 2 channel (I/Q), same endianess direct copy
@@ -572,6 +516,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 {
 	std::lock_guard<std::mutex> lock(mutex);
+
 	size_t items = std::min(buf_size - items_in_buf, numElems);
 
 	int16_t src = 0;
@@ -671,7 +616,6 @@ int tx_streamer::flush()
 	std::lock_guard<std::mutex> lock(mutex);
 
 	return send_buf();
-
 }
 
 int tx_streamer::send_buf()

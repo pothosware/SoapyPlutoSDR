@@ -3,7 +3,7 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <condition_variable>
+#include <atomic>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
@@ -37,17 +37,9 @@ class rx_streamer {
 
 		void set_buffer_size(const size_t _buffer_size);
 
-		void channel_read(const struct iio_channel *chn, void *dst, size_t len);
-
-		void refill_thread();
-
 		bool has_direct_copy();
 
-		std::thread refill_thd;
-		std::mutex mutex;
-		std::condition_variable cond, cond2;
 		std::vector<iio_channel* > channel_list;
-		volatile bool thread_stopped, please_refill_buffer;
 		const iio_device  *dev;
 
 		size_t buffer_size;
@@ -276,8 +268,11 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *rx_dev;
 		iio_device *tx_dev;
 		bool gainMode;
+
 		mutable std::mutex device_mutex;
+
 		bool decimation, interpolation;
 		std::shared_ptr<rx_streamer> rx_stream;
+        std::shared_ptr<tx_streamer> tx_stream;
 };
 
