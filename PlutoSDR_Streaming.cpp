@@ -18,6 +18,7 @@ std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, co
 	std::vector<std::string> formats;
 
 	formats.push_back(SOAPY_SDR_CS8);
+	formats.push_back(SOAPY_SDR_CS12);
 	formats.push_back(SOAPY_SDR_CS16);
 	formats.push_back(SOAPY_SDR_CF32);
 
@@ -63,13 +64,17 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 		SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16.");
 		streamFormat = PLUTO_SDR_CS16;
 	}
+	else if (format == SOAPY_SDR_CS12) {
+		SoapySDR_log(SOAPY_SDR_INFO, "Using format CS12.");
+		streamFormat = PLUTO_SDR_CS12;
+	}
 	else if (format == SOAPY_SDR_CS8) {
 		SoapySDR_log(SOAPY_SDR_INFO, "Using format CS8.");
 		streamFormat = PLUTO_SDR_CS8;
 	}
 	else {
 		throw std::runtime_error(
-			"setupStream invalid format '" + format + "' -- Only CS8, CS16 and CF32 are supported by SoapyPlutoSDR module.");
+			"setupStream invalid format '" + format + "' -- Only CS8, CS12, CS16 and CF32 are supported by SoapyPlutoSDR module.");
 	}
 
 	if(direction ==SOAPY_SDR_RX){	
@@ -293,7 +298,7 @@ size_t rx_streamer::recv(void * const *buffs,
 
 		if (format == PLUTO_SDR_CS16) {
 
-		   ::memcpy(buffs[0], src_ptr, 2 * sizeof(int16_t) * items);
+			::memcpy(buffs[0], src_ptr, 2 * sizeof(int16_t) * items);
 
 		}
 		else if (format == PLUTO_SDR_CF32) {
@@ -306,6 +311,20 @@ size_t rx_streamer::recv(void * const *buffs,
 				dst_cf32++;
 			}
 
+		}
+		else if (format == PLUTO_SDR_CS12) {
+
+			int8_t *dst_cs12 = (int8_t *)buffs[0];
+
+			for (size_t index = 0; index < items; ++index) {
+				int16_t i = *src_ptr++;
+				int16_t q = *src_ptr++;
+				// produce 24 bit (iiqIQQ), note the input is LSB aligned, scale=2048
+				// note: byte0 = i[7:0]; byte1 = {q[3:0], i[11:8]}; byte2 = q[11:4];
+				*dst_cs12++ = uint8_t(i);
+				*dst_cs12++ = uint8_t((q << 4) | ((i >> 8) & 0x0f));
+				*dst_cs12++ = uint8_t(q >> 4);
+			}
 		}
 		else if (format == PLUTO_SDR_CS8) {
 
@@ -566,11 +585,33 @@ int tx_streamer::send(	const void * const *buffs,
 
 		memcpy(dst_ptr, buffs[0], 2 * sizeof(int16_t) * items);
 	}
+	else if (direct_copy && format == PLUTO_SDR_CS12) {
+
+		dst_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
+		int8_t *samples_cs12 = (int8_t *)buffs[0];
+
+		for (size_t index = 0; index < items; ++index) {
+			// consume 24 bit (iiqIQQ)
+			uint16_t src0 = uint16_t(*(samples_cs12++));
+			uint16_t src1 = uint16_t(*(samples_cs12++));
+			uint16_t src2 = uint16_t(*(samples_cs12++));
+			// produce 2x 16 bit, note the output is MSB aligned, scale=32768
+			// note: byte0 = i[11:4]; byte1 = {q[7:4], i[15:12]}; byte2 = q[15:8];
+			*dst_ptr = int16_t((src1 << 12) | (src0 << 4));
+			dst_ptr++;
+			*dst_ptr = int16_t((src2 << 8) | (src1 & 0xf0));
+			dst_ptr++;
+		}
+	}
+	else if (format == PLUTO_SDR_CS12) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "CS12 not available with this endianess or channel layout");
+		throw std::runtime_error("CS12 not available with this endianess or channel layout");
+	}
 	else
 
-	for (unsigned int i = 0; i < channel_list.size(); i++) {
-		iio_channel *chn = channel_list[i];
-		unsigned int index = i / 2;
+	for (unsigned int k = 0; k < channel_list.size(); k++) {
+		iio_channel *chn = channel_list[k];
+		unsigned int index = k / 2;
 
 		dst_ptr = (uint8_t *)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
 
@@ -580,7 +621,7 @@ int tx_streamer::send(	const void * const *buffs,
 			int16_t *samples_cs16 = (int16_t *)buffs[index];
 
 			for (size_t j = 0; j < items; ++j) {
-				src = samples_cs16[j*2+i];
+				src = samples_cs16[j*2+k];
 				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
@@ -590,7 +631,7 @@ int tx_streamer::send(	const void * const *buffs,
 			float *samples_cf32 = (float *)buffs[index];
 
 			for (size_t j = 0; j < items; ++j) {
-				src = (int16_t)(samples_cf32[j*2+i] * 32767.999f); // 32767.999f (0x46ffffff) will ensure better distribution
+				src = (int16_t)(samples_cf32[j*2+k] * 32767.999f); // 32767.999f (0x46ffffff) will ensure better distribution
 				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
@@ -600,7 +641,7 @@ int tx_streamer::send(	const void * const *buffs,
 			int8_t *samples_cs8 = (int8_t *)buffs[index];
 
 			for (size_t j = 0; j < items; ++j) {
-				src = (int16_t)(samples_cs8[j*2+i] << 8);
+				src = (int16_t)(samples_cs8[j*2+k] << 8);
 				iio_channel_convert_inverse(chn, dst_ptr, src_ptr);
 				dst_ptr += buf_step;
 			}
