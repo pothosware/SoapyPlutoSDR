@@ -12,7 +12,6 @@
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
 {
-
 	std::vector<std::string> formats;
 
 	formats.push_back(SOAPY_SDR_CS8);
@@ -21,7 +20,6 @@ std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, co
 	formats.push_back(SOAPY_SDR_CF32);
 
 	return formats;
-
 }
 
 std::string SoapyPlutoSDR::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
@@ -108,7 +106,7 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 			"setupStream invalid format '" + format + "' -- Only CS8, CS12, CS16 and CF32 are supported by SoapyPlutoSDR module.");
 	}
 
-    std::lock_guard<std::mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
 	if(direction == SOAPY_SDR_RX){	
 
@@ -130,7 +128,7 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         this->rx_stream.reset();
@@ -153,7 +151,7 @@ int SoapyPlutoSDR::activateStream(
 	if (flags & ~SOAPY_SDR_END_BURST)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
-    std::lock_guard<std::mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         return this->rx_stream->start(flags, timeNs, numElems);
@@ -167,7 +165,7 @@ int SoapyPlutoSDR::deactivateStream(
 		const int flags,
 		const long long timeNs )
 {
-    std::lock_guard<std::mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         return this->rx_stream->stop(flags, timeNs);
@@ -187,6 +185,8 @@ int SoapyPlutoSDR::readStream(
 		long long &timeNs,
 		const long timeoutUs )
 {
+    //the spin_mutex is especially very useful here for minimum overhead !
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
@@ -203,6 +203,7 @@ int SoapyPlutoSDR::writeStream(
 		const long long timeNs,
 		const long timeoutUs )
 {
+    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
 
     if (IsValidTxStreamHandle(handle)) {
         return this->tx_stream->send(buffs, numElems, flags, timeNs, timeoutUs);;
@@ -559,8 +560,6 @@ int tx_streamer::send(	const void * const *buffs,
 		const long timeoutUs )
 
 {
-	std::lock_guard<std::mutex> lock(mutex);
-
 	size_t items = std::min(buf_size - items_in_buf, numElems);
 
 	int16_t src = 0;
@@ -657,14 +656,11 @@ int tx_streamer::send(	const void * const *buffs,
 
 int tx_streamer::flush()
 {
-	std::lock_guard<std::mutex> lock(mutex);
-
 	return send_buf();
 }
 
 int tx_streamer::send_buf()
 {
-
 	if (items_in_buf > 0) {
 		if (items_in_buf < buf_size) {
 			ptrdiff_t buf_step = iio_buffer_step(buf);

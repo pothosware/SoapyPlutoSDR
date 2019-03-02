@@ -66,12 +66,29 @@ class tx_streamer {
 		std::vector<iio_channel* > channel_list;
 		const iio_device  *dev;
 		const plutosdrStreamFormat format;
-		std::mutex mutex;
+		
 		iio_buffer  *buf;
 		size_t buf_size;
 		size_t items_in_buf;
 		bool direct_copy;
 
+};
+
+// A local spin_mutex usable with std::lock_guard
+       //for lightweight locking for short periods.
+class pluto_spin_mutex {
+
+public:
+    pluto_spin_mutex() = default;
+
+    ~pluto_spin_mutex() { lock_state.clear(std::memory_order_release); }
+
+    void lock() { while (lock_state.test_and_set(std::memory_order_acquire)); }
+
+    void unlock() { lock_state.clear(std::memory_order_release); }
+
+private:
+    std::atomic_flag lock_state = ATOMIC_FLAG_INIT;
 };
 
 
@@ -260,7 +277,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 		std::vector<double> listBandwidths( const int direction, const size_t channel ) const;
 
-
+       
 
 	private:
 
@@ -272,10 +289,12 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *tx_dev;
 		bool gainMode;
 
-		mutable std::mutex device_mutex;
+		mutable pluto_spin_mutex device_mutex;
 
 		bool decimation, interpolation;
 		std::unique_ptr<rx_streamer> rx_stream;
         std::unique_ptr<tx_streamer> tx_stream;
+
+        
 };
 
