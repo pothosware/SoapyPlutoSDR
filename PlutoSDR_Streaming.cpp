@@ -79,23 +79,6 @@ bool SoapyPlutoSDR::IsValidTxStreamHandle(SoapySDR::Stream* handle)
     return false;
 }
 
-bool SoapyPlutoSDR::IsValidStreamHandle(SoapySDR::Stream* handle, const int direction)
-{
-    if (handle == nullptr) {
-        return false;
-    }
-
-    //handle is an opaque pointer hiding either rx_stream or tx_streamer:
-    //check that the handle matches one of them, onsistently with direction:
-    if (direction == SOAPY_SDR_RX && IsValidRxStreamHandle(handle)) {
-        return true;
-    } else if (direction == SOAPY_SDR_TX && IsValidTxStreamHandle(handle)) {
-
-        return true;
-    }
-    return false;
-}
-
 SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 		const int direction,
 		const std::string &format,

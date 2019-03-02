@@ -266,7 +266,6 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
         bool IsValidRxStreamHandle(SoapySDR::Stream* handle);
         bool IsValidTxStreamHandle(SoapySDR::Stream* handle);
-        bool IsValidStreamHandle(SoapySDR::Stream* handle, const int direction);
        
 		iio_device *dev;
 		iio_device *rx_dev;
