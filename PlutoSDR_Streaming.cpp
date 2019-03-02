@@ -42,6 +42,60 @@ SoapySDR::ArgInfoList SoapyPlutoSDR::getStreamArgsInfo(const int direction, cons
 	return streamArgs;
 }
 
+
+bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle)
+{
+    if (handle == nullptr) {
+        return false;
+    }
+
+    //handle is an opaque pointer hiding either rx_stream or tx_streamer:
+    //check that the handle matches one of them, onsistently with direction:
+    if (rx_stream) {
+        //test if these handles really belong to us:
+        if (reinterpret_cast<rx_streamer*>(handle) == rx_stream.get()) {
+            return true;
+        } 
+    } 
+ 
+    return false;
+}
+
+bool SoapyPlutoSDR::IsValidTxStreamHandle(SoapySDR::Stream* handle)
+{
+    if (handle == nullptr) {
+        return false;
+    }
+
+    //handle is an opaque pointer hiding either rx_stream or tx_streamer:
+    //check that the handle matches one of them, onsistently with direction:
+    if (tx_stream) {
+        //test if these handles really belong to us:
+        if (reinterpret_cast<tx_streamer*>(handle) == tx_stream.get()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SoapyPlutoSDR::IsValidStreamHandle(SoapySDR::Stream* handle, const int direction)
+{
+    if (handle == nullptr) {
+        return false;
+    }
+
+    //handle is an opaque pointer hiding either rx_stream or tx_streamer:
+    //check that the handle matches one of them, onsistently with direction:
+    if (direction == SOAPY_SDR_RX && IsValidRxStreamHandle(handle)) {
+        return true;
+    } else if (direction == SOAPY_SDR_TX && IsValidTxStreamHandle(handle)) {
+
+        return true;
+    }
+    return false;
+}
+
 SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 		const int direction,
 		const std::string &format,
@@ -73,17 +127,21 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
     std::lock_guard<std::mutex> lock(device_mutex);
 
-	if(direction ==SOAPY_SDR_RX){	
+	if(direction == SOAPY_SDR_RX){	
 
         this->rx_stream = std::make_unique<rx_streamer>(rx_dev, streamFormat, channels, args);
+
+        return reinterpret_cast<SoapySDR::Stream*>(this->rx_stream.get());
 	}
 
 	if (direction == SOAPY_SDR_TX) {
 
         this->tx_stream = std::make_unique<tx_streamer>(tx_dev, streamFormat, channels, args);
+
+        return reinterpret_cast<SoapySDR::Stream*>(this->tx_stream.get());
 	}
 
-	return reinterpret_cast<SoapySDR::Stream *>(this);
+	return nullptr;
 
 }
 
@@ -91,12 +149,10 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
 
-    if (this->rx_stream) {
+    if (IsValidRxStreamHandle(handle)) {
         this->rx_stream.reset();
-    }
-
-    if (this->tx_stream ) {
-        this->tx_stream.reset();
+    } else if (IsValidTxStreamHandle(handle)) {
+       this->tx_stream.reset();
     }
 }
 
@@ -114,12 +170,13 @@ int SoapyPlutoSDR::activateStream(
 	if (flags & ~SOAPY_SDR_END_BURST)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
-    if (this->rx_stream == nullptr)
-        return 0;
-
     std::lock_guard<std::mutex> lock(device_mutex);
 
-	return this->rx_stream->start(flags,timeNs,numElems);
+    if (IsValidRxStreamHandle(handle)) {
+        return this->rx_stream->start(flags, timeNs, numElems);
+    }
+
+    return 0;
 }
 
 int SoapyPlutoSDR::deactivateStream(
@@ -127,17 +184,16 @@ int SoapyPlutoSDR::deactivateStream(
 		const int flags,
 		const long long timeNs )
 {
-
-    if(this->tx_stream) {
-        this->tx_stream->flush();
-    }
-
-    if (this->rx_stream == nullptr)
-        return 0;
-
     std::lock_guard<std::mutex> lock(device_mutex);
 
-	return this->rx_stream->stop(flags,timeNs);
+    if (IsValidRxStreamHandle(handle)) {
+        return this->rx_stream->stop(flags, timeNs);
+    } else if (IsValidTxStreamHandle(handle)) {
+        this->tx_stream->flush();
+        return 0;
+    }
+
+	return 0;
 }
 
 int SoapyPlutoSDR::readStream(
@@ -148,11 +204,12 @@ int SoapyPlutoSDR::readStream(
 		long long &timeNs,
 		const long timeoutUs )
 {
-	if (this->rx_stream == nullptr) {
-		return SOAPY_SDR_NOT_SUPPORTED;
-	}
-  
-	return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
+
+    if (IsValidRxStreamHandle(handle)) {
+        return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
+    } else {
+        return SOAPY_SDR_NOT_SUPPORTED;
+    }
 }
 
 int SoapyPlutoSDR::writeStream(
@@ -163,13 +220,13 @@ int SoapyPlutoSDR::writeStream(
 		const long long timeNs,
 		const long timeoutUs )
 {
-   
-	if (this->tx_stream == nullptr) {
-		return SOAPY_SDR_NOT_SUPPORTED;
-	}
 
-  	return this->tx_stream->send(buffs,numElems,flags,timeNs,timeoutUs);;
-
+    if (IsValidTxStreamHandle(handle)) {
+        return this->tx_stream->send(buffs, numElems, flags, timeNs, timeoutUs);;
+    } else {
+        return SOAPY_SDR_NOT_SUPPORTED;
+    }
+  
 }
 
 int SoapyPlutoSDR::readStreamStatus(
