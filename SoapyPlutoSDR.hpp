@@ -272,7 +272,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		mutable std::mutex device_mutex;
 
 		bool decimation, interpolation;
-		std::shared_ptr<rx_streamer> rx_stream;
-        std::shared_ptr<tx_streamer> tx_stream;
+		std::unique_ptr<rx_streamer> rx_stream;
+        std::unique_ptr<tx_streamer> tx_stream;
 };
 

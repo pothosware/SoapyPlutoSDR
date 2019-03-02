@@ -7,7 +7,7 @@
 #include <algorithm> 
 #include <chrono>
 
-# define RX_STREAM_MTU   (131072)
+# define RX_STREAM_MTU   (65536)
 
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
@@ -75,12 +75,12 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 	if(direction ==SOAPY_SDR_RX){	
 
-        this->rx_stream = std::make_shared<rx_streamer>(rx_dev, streamFormat, channels, args);
+        this->rx_stream = std::make_unique<rx_streamer>(rx_dev, streamFormat, channels, args);
 	}
 
 	if (direction == SOAPY_SDR_TX) {
 
-        this->tx_stream = std::make_shared<tx_streamer>(tx_dev, streamFormat, channels, args);
+        this->tx_stream = std::make_unique<tx_streamer>(tx_dev, streamFormat, channels, args);
 	}
 
 	return reinterpret_cast<SoapySDR::Stream *>(this);
@@ -91,9 +91,13 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
 	std::lock_guard<std::mutex> lock(device_mutex);
 
-    //let it die peacefully
-    this->rx_stream = nullptr;
-    this->tx_stream = nullptr;
+    if (this->rx_stream) {
+        this->rx_stream.reset();
+    }
+
+    if (this->tx_stream ) {
+        this->tx_stream.reset();
+    }
 }
 
 size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
@@ -147,7 +151,7 @@ int SoapyPlutoSDR::readStream(
 	if (this->rx_stream == nullptr) {
 		return SOAPY_SDR_NOT_SUPPORTED;
 	}
-   
+  
 	return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
 }
 
