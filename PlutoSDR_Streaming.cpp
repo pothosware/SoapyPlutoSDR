@@ -111,7 +111,7 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-        this->rx_stream = std::make_unique<rx_streamer>(rx_dev, streamFormat, channels, args);
+        this->rx_stream = std::unique_ptr<rx_streamer>(new rx_streamer (rx_dev, streamFormat, channels, args));
 
         return reinterpret_cast<SoapySDR::Stream*>(this->rx_stream.get());
 	}
@@ -120,7 +120,7 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
-        this->tx_stream = std::make_unique<tx_streamer>(tx_dev, streamFormat, channels, args);
+        this->tx_stream = std::unique_ptr<tx_streamer>(new tx_streamer (tx_dev, streamFormat, channels, args));
 
         return reinterpret_cast<SoapySDR::Stream*>(this->tx_stream.get());
 	}
