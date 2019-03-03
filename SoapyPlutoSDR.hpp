@@ -81,6 +81,10 @@ class pluto_spin_mutex {
 public:
     pluto_spin_mutex() = default;
 
+    pluto_spin_mutex(const pluto_spin_mutex&) = delete;
+
+    pluto_spin_mutex& operator=(const pluto_spin_mutex&) = delete;
+
     ~pluto_spin_mutex() { lock_state.clear(std::memory_order_release); }
 
     void lock() { while (lock_state.test_and_set(std::memory_order_acquire)); }
@@ -289,7 +293,8 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *tx_dev;
 		bool gainMode;
 
-		mutable pluto_spin_mutex device_mutex;
+		mutable pluto_spin_mutex rx_device_mutex;
+        mutable pluto_spin_mutex tx_device_mutex;
 
 		bool decimation, interpolation;
 		std::unique_ptr<rx_streamer> rx_stream;

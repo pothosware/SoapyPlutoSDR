@@ -106,16 +106,19 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 			"setupStream invalid format '" + format + "' -- Only CS8, CS12, CS16 and CF32 are supported by SoapyPlutoSDR module.");
 	}
 
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
-
+    
 	if(direction == SOAPY_SDR_RX){	
+
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
         this->rx_stream = std::make_unique<rx_streamer>(rx_dev, streamFormat, channels, args);
 
         return reinterpret_cast<SoapySDR::Stream*>(this->rx_stream.get());
 	}
 
-	if (direction == SOAPY_SDR_TX) {
+	else if (direction == SOAPY_SDR_TX) {
+
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
         this->tx_stream = std::make_unique<tx_streamer>(tx_dev, streamFormat, channels, args);
 
@@ -128,12 +131,22 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
 void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 {
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
+    //scope lock:
+    {
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-    if (IsValidRxStreamHandle(handle)) {
-        this->rx_stream.reset();
-    } else if (IsValidTxStreamHandle(handle)) {
-       this->tx_stream.reset();
+        if (IsValidRxStreamHandle(handle)) {
+            this->rx_stream.reset();
+        }
+    }
+    
+    //scope lock :
+    {
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
+
+        if (IsValidTxStreamHandle(handle)) {
+            this->tx_stream.reset();
+        }
     }
 }
 
@@ -151,7 +164,7 @@ int SoapyPlutoSDR::activateStream(
 	if (flags & ~SOAPY_SDR_END_BURST)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         return this->rx_stream->start(flags, timeNs, numElems);
@@ -165,13 +178,23 @@ int SoapyPlutoSDR::deactivateStream(
 		const int flags,
 		const long long timeNs )
 {
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
+    //scope lock:
+    {
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-    if (IsValidRxStreamHandle(handle)) {
-        return this->rx_stream->stop(flags, timeNs);
-    } else if (IsValidTxStreamHandle(handle)) {
-        this->tx_stream->flush();
-        return 0;
+        if (IsValidRxStreamHandle(handle)) {
+            return this->rx_stream->stop(flags, timeNs);
+        }
+    }
+
+    //scope lock :
+    {
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
+
+        if (IsValidTxStreamHandle(handle)) {
+            this->tx_stream->flush();
+            return 0;
+        }
     }
 
 	return 0;
@@ -186,7 +209,7 @@ int SoapyPlutoSDR::readStream(
 		const long timeoutUs )
 {
     //the spin_mutex is especially very useful here for minimum overhead !
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
         return int(this->rx_stream->recv(buffs, numElems, flags, timeNs, timeoutUs));
@@ -203,7 +226,7 @@ int SoapyPlutoSDR::writeStream(
 		const long long timeNs,
 		const long timeoutUs )
 {
-    std::lock_guard<pluto_spin_mutex> lock(device_mutex);
+    std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
     if (IsValidTxStreamHandle(handle)) {
         return this->tx_stream->send(buffs, numElems, flags, timeNs, timeoutUs);;
@@ -288,8 +311,11 @@ rx_streamer::~rx_streamer()
         iio_buffer_destroy(buf); 
     }
 
-	for(unsigned int i=0;i<channel_list.size(); ++i)
-		iio_channel_disable(channel_list[i]);
+    for (unsigned int i = 0; i < channel_list.size(); ++i) {
+        iio_channel_disable(channel_list[i]);
+    }
+
+
 
 }
 
@@ -431,8 +457,6 @@ int rx_streamer::start(const int flags,
     //force proper stop before
     stop(flags, timeNs);
 
-	items_in_buffer = 0;
-	
     // re-create buffer 
 	buf = iio_device_create_buffer(dev, buffer_size, false);
 
@@ -461,6 +485,9 @@ int rx_streamer::stop(const int flags,
 		iio_buffer_destroy(buf);
 		buf = nullptr;
 	}
+
+    items_in_buffer = 0;
+    byte_offset = 0;
 
 	return 0;
 
@@ -560,6 +587,10 @@ int tx_streamer::send(	const void * const *buffs,
 		const long timeoutUs )
 
 {
+    if (!buf) {
+        return 0;
+    }
+
 	size_t items = std::min(buf_size - items_in_buf, numElems);
 
 	int16_t src = 0;
@@ -661,6 +692,10 @@ int tx_streamer::flush()
 
 int tx_streamer::send_buf()
 {
+    if (!buf) {
+        return 0;
+    }
+
 	if (items_in_buf > 0) {
 		if (items_in_buf < buf_size) {
 			ptrdiff_t buf_step = iio_buffer_step(buf);
