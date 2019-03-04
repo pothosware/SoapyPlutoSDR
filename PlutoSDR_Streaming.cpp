@@ -7,7 +7,7 @@
 #include <algorithm> 
 #include <chrono>
 
-# define RX_STREAM_MTU   (65536)
+# define RX_BUFFER_SIZE (2 * 65536)
 
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
@@ -41,7 +41,7 @@ SoapySDR::ArgInfoList SoapyPlutoSDR::getStreamArgsInfo(const int direction, cons
 }
 
 
-bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle)
+bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle) const
 {
     if (handle == nullptr) {
         return false;
@@ -152,7 +152,14 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 
 size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
 {
-	return RX_STREAM_MTU;
+    std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
+
+    if (IsValidRxStreamHandle(handle)) {
+ 
+        return this->rx_stream->get_mtu_size();
+    }
+
+    return 0;
 }
 
 int SoapyPlutoSDR::activateStream(
@@ -246,21 +253,32 @@ int SoapyPlutoSDR::readStreamStatus(
 	return SOAPY_SDR_NOT_SUPPORTED;
 }
 
-void rx_streamer::set_buffer_size_by_samplerate(const size_t _samplerate) {
+void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
-	uint32_t n = 1, x = uint32_t(_samplerate);
-	if ((x >> 16) == 0) { n = n + 16; x = x << 16; }
-	if ((x >> 24) == 0) { n = n + 8; x = x << 8; }
-	if ((x >> 28) == 0) { n = n + 4; x = x << 4; }
-	if ((x >> 30) == 0) { n = n + 2; x = x << 2; }
-	n = n - (x >> 31);
-
-	//this->set_buffer_size(std::max(1 << (31 - n - 2), 16384)); // too large for CubicSDR
-    //TODO: find smarter way w.r.t MTU and sample rate ?
-	this->set_buffer_size((size_t)(RX_STREAM_MTU));
-
+    this->set_buffer_size((size_t)(RX_BUFFER_SIZE));
+   
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
+
+    //recompute MTU from sample-rate
+    if (samplerate >= 6000000) {
+        set_mtu_size(get_buffer_size());
+    }
+    else if (samplerate >= 4000000 && samplerate < 6000000) {
+        set_mtu_size( 0.5 * get_buffer_size());
+    } else if (samplerate >= 1000000 && samplerate < 4000000) {
+        set_mtu_size(0.25 * get_buffer_size());
+    } else  {
+        set_mtu_size(0.125 * get_buffer_size());
+    }
 }
+
+void rx_streamer::set_mtu_size(const size_t mtu_size) {
+
+    this->mtu_size = mtu_size;
+
+    SoapySDR_logf(SOAPY_SDR_INFO, "Set MTU Size: %lu", (unsigned long)mtu_size);
+}
+
 
 rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
 	dev(_dev), buffer_size(16384), buf(nullptr), format(_format)
@@ -510,7 +528,14 @@ void rx_streamer::set_buffer_size(const size_t _buffer_size){
 	}
 
 	this->buffer_size=_buffer_size;
+}
 
+size_t rx_streamer::get_buffer_size() {
+    return this->buffer_size;
+}
+
+size_t rx_streamer::get_mtu_size() {
+    return this->mtu_size;
 }
 
 // return wether can we optimize for single RX, 2 channel (I/Q), same endianess direct copy
