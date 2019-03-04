@@ -4,6 +4,7 @@
 #endif
 
 static iio_context *ctx = nullptr; 
+
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
@@ -157,14 +158,13 @@ std::vector<std::string> SoapyPlutoSDR::listAntennas( const int direction, const
 
 void SoapyPlutoSDR::setAntenna( const int direction, const size_t channel, const std::string &name )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
-	if (direction == SOAPY_SDR_RX) {
-
+   if (direction == SOAPY_SDR_RX) {
+       std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "rf_port_select", name.c_str());
 	}
 
-	if (direction == SOAPY_SDR_TX) {
-
+	else if (direction == SOAPY_SDR_TX) {
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", true), "rf_port_select", name.c_str());
 
 	} 
@@ -178,7 +178,7 @@ std::string SoapyPlutoSDR::getAntenna( const int direction, const size_t channel
 	if (direction == SOAPY_SDR_RX) {
 		options = "A_BALANCED";
 	}
-	if (direction == SOAPY_SDR_TX) {
+	else if (direction == SOAPY_SDR_TX) {
 
 		options = "A";
 	}
@@ -214,10 +214,10 @@ bool SoapyPlutoSDR::hasGainMode(const int direction, const size_t channel) const
 
 void SoapyPlutoSDR::setGainMode( const int direction, const size_t channel, const bool automatic )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
+
 	gainMode = automatic;
 	if(direction==SOAPY_SDR_RX){
-
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		if (gainMode) {
 
 			iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "gain_control_mode", "slow_attack");
@@ -237,16 +237,15 @@ bool SoapyPlutoSDR::getGainMode(const int direction, const size_t channel) const
 
 void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const double value )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long gain = (long long) value;
 	if(direction==SOAPY_SDR_RX){
-
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"hardwaregain", gain);
 
 	}
 
-	if(direction==SOAPY_SDR_TX){
-
+	else if(direction==SOAPY_SDR_TX){
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		gain = gain - 89;
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain", gain);
 
@@ -256,25 +255,25 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 
 void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const std::string &name, const double value )
 {
-
 	this->setGain(direction,channel,value);
-
 }
 
 double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const std::string &name ) const
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long gain = 0;
 
 	if(direction==SOAPY_SDR_RX){
+
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"hardwaregain",&gain )!=0)
 			return 0;
 
 	}
 
-	if(direction==SOAPY_SDR_TX){
+	else if(direction==SOAPY_SDR_TX){
 
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain",&gain )!=0)
 			return 0;
@@ -297,15 +296,15 @@ SoapySDR::Range SoapyPlutoSDR::getGainRange( const int direction, const size_t c
 
 void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long freq = (long long)frequency;
 	if(direction==SOAPY_SDR_RX){
 
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage0", true),"frequency", freq);
 	}
 
-	if(direction==SOAPY_SDR_TX){
-
+	else if(direction==SOAPY_SDR_TX){
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage1", true),"frequency", freq);
 
 	}
@@ -314,17 +313,20 @@ void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, con
 
 double SoapyPlutoSDR::getFrequency( const int direction, const size_t channel, const std::string &name ) const
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
-	long long freq;
+  	long long freq;
 
 	if(direction==SOAPY_SDR_RX){
+
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "altvoltage0", true),"frequency",&freq )!=0)
 			return 0;
 
 	}
 
-	if(direction==SOAPY_SDR_TX){
+	else if(direction==SOAPY_SDR_TX){
+
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "altvoltage1", true),"frequency",&freq )!=0)
 			return 0;
@@ -361,10 +363,10 @@ SoapySDR::RangeList SoapyPlutoSDR::getFrequencyRange( const int direction, const
  ******************************************************************/
 void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, const double rate )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long samplerate =(long long) rate;
 
 	if(direction==SOAPY_SDR_RX){
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		decimation = false;
 		if (samplerate<(25e6 / 48)) {
 			if (samplerate * 8 < (25e6 / 48)) {
@@ -383,7 +385,8 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 			rx_stream->set_buffer_size_by_samplerate(decimation ? samplerate / 8 : samplerate);
 	}
 
-	if(direction==SOAPY_SDR_TX){
+	else if(direction==SOAPY_SDR_TX){
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		interpolation = false;
 		if (samplerate<(25e6 / 48)) {
 			if (samplerate * 8 < (25e6 / 48)) {
@@ -401,7 +404,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 	}
 
 #ifdef HAS_AD9361_IIO
-	if(ad9361_set_bb_rate(dev,samplerate))
+	if(ad9361_set_bb_rate(dev,(unsigned long)samplerate))
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to set BB rate.");	
 #endif
 
@@ -409,16 +412,19 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel ) const
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long samplerate;
 
 	if(direction==SOAPY_SDR_RX){
+
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(rx_dev, "voltage0", false),"sampling_frequency",&samplerate )!=0)
 			return 0;
 	}
 
-	if(direction==SOAPY_SDR_TX){
+	else if(direction==SOAPY_SDR_TX){
+        
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency",&samplerate)!=0)
 			return 0;
@@ -450,34 +456,33 @@ std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const s
 
 void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, const double bw )
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
 	long long bandwidth = (long long) bw;
 	if(direction==SOAPY_SDR_RX){
-
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"rf_bandwidth", bandwidth);
 	}
 
-	if(direction==SOAPY_SDR_TX){
-
+	else if(direction==SOAPY_SDR_TX){
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"rf_bandwidth", bandwidth);
-
 	}
 
 }
 
 double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) const
 {
-	std::lock_guard<std::mutex> lock(device_mutex);
-	long long bandwidth;
+    long long bandwidth;
 
 	if(direction==SOAPY_SDR_RX){
+        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"rf_bandwidth",&bandwidth )!=0)
 			return 0;
 
 	}
 
-	if(direction==SOAPY_SDR_TX){
+	else if(direction==SOAPY_SDR_TX){
+        std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
 		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"rf_bandwidth",&bandwidth )!=0)
 			return 0;

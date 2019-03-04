@@ -3,7 +3,7 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <condition_variable>
+#include <atomic>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Formats.hpp>
@@ -37,17 +37,9 @@ class rx_streamer {
 
 		void set_buffer_size(const size_t _buffer_size);
 
-		void channel_read(const struct iio_channel *chn, void *dst, size_t len);
-
-		void refill_thread();
-
 		bool has_direct_copy();
 
-		std::thread refill_thd;
-		std::mutex mutex;
-		std::condition_variable cond, cond2;
 		std::vector<iio_channel* > channel_list;
-		volatile bool thread_stopped, please_refill_buffer;
 		const iio_device  *dev;
 
 		size_t buffer_size;
@@ -74,12 +66,33 @@ class tx_streamer {
 		std::vector<iio_channel* > channel_list;
 		const iio_device  *dev;
 		const plutosdrStreamFormat format;
-		std::mutex mutex;
+		
 		iio_buffer  *buf;
 		size_t buf_size;
 		size_t items_in_buf;
 		bool direct_copy;
 
+};
+
+// A local spin_mutex usable with std::lock_guard
+       //for lightweight locking for short periods.
+class pluto_spin_mutex {
+
+public:
+    pluto_spin_mutex() = default;
+
+    pluto_spin_mutex(const pluto_spin_mutex&) = delete;
+
+    pluto_spin_mutex& operator=(const pluto_spin_mutex&) = delete;
+
+    ~pluto_spin_mutex() { lock_state.clear(std::memory_order_release); }
+
+    void lock() { while (lock_state.test_and_set(std::memory_order_acquire)); }
+
+    void unlock() { lock_state.clear(std::memory_order_release); }
+
+private:
+    std::atomic_flag lock_state = ATOMIC_FLAG_INIT;
 };
 
 
@@ -268,16 +281,25 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 		std::vector<double> listBandwidths( const int direction, const size_t channel ) const;
 
-
+       
 
 	private:
 
+        bool IsValidRxStreamHandle(SoapySDR::Stream* handle);
+        bool IsValidTxStreamHandle(SoapySDR::Stream* handle);
+       
 		iio_device *dev;
 		iio_device *rx_dev;
 		iio_device *tx_dev;
 		bool gainMode;
-		mutable std::mutex device_mutex;
+
+		mutable pluto_spin_mutex rx_device_mutex;
+        mutable pluto_spin_mutex tx_device_mutex;
+
 		bool decimation, interpolation;
-		std::shared_ptr<rx_streamer> rx_stream;
+		std::unique_ptr<rx_streamer> rx_stream;
+        std::unique_ptr<tx_streamer> tx_stream;
+
+        
 };
 
