@@ -33,15 +33,11 @@ class rx_streamer {
 
 		void set_buffer_size_by_samplerate(const size_t _samplerate);
 
-       
-        size_t get_buffer_size();
-
         size_t get_mtu_size();
 
 	private:
 
 		void set_buffer_size(const size_t _buffer_size);
-
         void set_mtu_size(const size_t mtu_size);
 
 		bool has_direct_copy();

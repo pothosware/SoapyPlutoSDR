@@ -7,7 +7,8 @@
 #include <algorithm> 
 #include <chrono>
 
-# define RX_BUFFER_SIZE (2 * 65536)
+//TODO: Need to be a power of 2 for maximum efficiency ?
+# define DEFAULT_RX_BUFFER_SIZE (1 << 16)
 
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
@@ -255,21 +256,15 @@ int SoapyPlutoSDR::readStreamStatus(
 
 void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
-    this->set_buffer_size((size_t)(RX_BUFFER_SIZE));
+    this->set_buffer_size((size_t)(DEFAULT_RX_BUFFER_SIZE));
    
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 
-    //recompute MTU from sample-rate
-    if (samplerate >= 6000000) {
-        set_mtu_size(get_buffer_size());
-    }
-    else if (samplerate >= 4000000 && samplerate < 6000000) {
-        set_mtu_size( 0.5 * get_buffer_size());
-    } else if (samplerate >= 1000000 && samplerate < 4000000) {
-        set_mtu_size(0.25 * get_buffer_size());
-    } else  {
-        set_mtu_size(0.125 * get_buffer_size());
-    }
+    //TODO: Recompute MTU from buffer size change.
+    //We set MTU size = Buffer Size.
+    //in the future buffer size may be able to adjust of sample rate,
+    //in this case MTU can be changed accordingly safely here.
+    set_mtu_size(this->buffer_size);
 }
 
 void rx_streamer::set_mtu_size(const size_t mtu_size) {
@@ -281,7 +276,7 @@ void rx_streamer::set_mtu_size(const size_t mtu_size) {
 
 
 rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(_dev), buffer_size(16384), buf(nullptr), format(_format)
+	dev(_dev), buffer_size(DEFAULT_RX_BUFFER_SIZE), mtu_size(DEFAULT_RX_BUFFER_SIZE), buf(nullptr), format(_format)
 
 {
 	if (dev == nullptr) {
@@ -528,10 +523,6 @@ void rx_streamer::set_buffer_size(const size_t _buffer_size){
 	}
 
 	this->buffer_size=_buffer_size;
-}
-
-size_t rx_streamer::get_buffer_size() {
-    return this->buffer_size;
 }
 
 size_t rx_streamer::get_mtu_size() {
