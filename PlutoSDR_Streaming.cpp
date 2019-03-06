@@ -256,11 +256,30 @@ int SoapyPlutoSDR::readStreamStatus(
 
 void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
-    this->set_buffer_size((size_t)(DEFAULT_RX_BUFFER_SIZE));
+    //Adapt buffer size (= MTU) as a tradeoff to minimize readStream overhead but at 
+    //the same time allow realtime applications. Keep it a power of 2 which seems to be better.
+    //so try to target very roughly [30 .. 100] readStream calls / s for realtime applications.
+    int rounded_msps = (int)::round(samplerate / 1e6);
+
+    size_t buffer_size_per_msps[] = { 
+         DEFAULT_RX_BUFFER_SIZE >> 3, 
+         DEFAULT_RX_BUFFER_SIZE >> 2,
+         DEFAULT_RX_BUFFER_SIZE >> 1,
+         DEFAULT_RX_BUFFER_SIZE >> 1,
+         DEFAULT_RX_BUFFER_SIZE,
+         DEFAULT_RX_BUFFER_SIZE,
+         DEFAULT_RX_BUFFER_SIZE << 1,
+         DEFAULT_RX_BUFFER_SIZE << 1,
+         DEFAULT_RX_BUFFER_SIZE << 2,
+         DEFAULT_RX_BUFFER_SIZE << 2,
+         DEFAULT_RX_BUFFER_SIZE << 2
+    };
+
+    this->set_buffer_size(buffer_size_per_msps[rounded_msps]);
    
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 
-    //TODO: Recompute MTU from buffer size change.
+    //Recompute MTU from buffer size change.
     //We set MTU size = Buffer Size.
     //in the future buffer size may be able to adjust of sample rate,
     //in this case MTU can be changed accordingly safely here.
