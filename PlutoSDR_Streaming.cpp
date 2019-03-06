@@ -258,24 +258,16 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
     //Adapt buffer size (= MTU) as a tradeoff to minimize readStream overhead but at 
     //the same time allow realtime applications. Keep it a power of 2 which seems to be better.
-    //so try to target very roughly [30 .. 100] readStream calls / s for realtime applications.
-    int rounded_msps = (int)::round(samplerate / 1e6);
+    //so try to target very roughly 60fps [30 .. 100] readStream calls / s for realtime applications.
+    int rounded_nb_samples_per_call = (int)::round(samplerate / 60.0);
 
-    size_t buffer_size_per_msps[] = { 
-         DEFAULT_RX_BUFFER_SIZE >> 3, 
-         DEFAULT_RX_BUFFER_SIZE >> 2,
-         DEFAULT_RX_BUFFER_SIZE >> 1,
-         DEFAULT_RX_BUFFER_SIZE >> 1,
-         DEFAULT_RX_BUFFER_SIZE,
-         DEFAULT_RX_BUFFER_SIZE,
-         DEFAULT_RX_BUFFER_SIZE << 1,
-         DEFAULT_RX_BUFFER_SIZE << 1,
-         DEFAULT_RX_BUFFER_SIZE << 2,
-         DEFAULT_RX_BUFFER_SIZE << 2,
-         DEFAULT_RX_BUFFER_SIZE << 2
-    };
+    int power_of_2_nb_samples = 0;
 
-    this->set_buffer_size(buffer_size_per_msps[rounded_msps]);
+    while (rounded_nb_samples_per_call > (1 << power_of_2_nb_samples)) {
+        power_of_2_nb_samples++;
+    }
+
+    this->set_buffer_size(1 << power_of_2_nb_samples);
    
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 
