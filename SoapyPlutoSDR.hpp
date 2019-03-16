@@ -33,9 +33,12 @@ class rx_streamer {
 
 		void set_buffer_size_by_samplerate(const size_t _samplerate);
 
+        size_t get_mtu_size();
+
 	private:
 
 		void set_buffer_size(const size_t _buffer_size);
+        void set_mtu_size(const size_t mtu_size);
 
 		bool has_direct_copy();
 
@@ -48,6 +51,7 @@ class rx_streamer {
 		iio_buffer  *buf;
 		const plutosdrStreamFormat format;
 		bool direct_copy;
+        size_t mtu_size;
 
 };
 
@@ -285,7 +289,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 	private:
 
-        bool IsValidRxStreamHandle(SoapySDR::Stream* handle);
+        bool IsValidRxStreamHandle(SoapySDR::Stream* handle) const;
         bool IsValidTxStreamHandle(SoapySDR::Stream* handle);
        
 		iio_device *dev;
