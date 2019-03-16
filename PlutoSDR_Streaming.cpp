@@ -49,7 +49,7 @@ bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle) const
     }
 
     //handle is an opaque pointer hiding either rx_stream or tx_streamer:
-    //check that the handle matches one of them, onsistently with direction:
+    //check that the handle matches one of them, consistently with direction:
     if (rx_stream) {
         //test if these handles really belong to us:
         if (reinterpret_cast<rx_streamer*>(handle) == rx_stream.get()) {
@@ -67,7 +67,7 @@ bool SoapyPlutoSDR::IsValidTxStreamHandle(SoapySDR::Stream* handle)
     }
 
     //handle is an opaque pointer hiding either rx_stream or tx_streamer:
-    //check that the handle matches one of them, onsistently with direction:
+    //check that the handle matches one of them, consistently with direction:
     if (tx_stream) {
         //test if these handles really belong to us:
         if (reinterpret_cast<tx_streamer*>(handle) == tx_stream.get()) {
@@ -272,9 +272,9 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 
     //Recompute MTU from buffer size change.
-    //We set MTU size = Buffer Size.
-    //in the future buffer size may be able to adjust of sample rate,
-    //in this case MTU can be changed accordingly safely here.
+    //We always set MTU size = Buffer Size.
+    //On buffer size adjustment to sample rate,
+    //MTU can be changed accordingly safely here.
     set_mtu_size(this->buffer_size);
 }
 
@@ -520,11 +520,18 @@ int rx_streamer::stop(const int flags,
 void rx_streamer::set_buffer_size(const size_t _buffer_size){
 
 	if (!buf || this->buffer_size != _buffer_size) {
-		if (buf) {
-			iio_buffer_destroy(buf);
-		}
+        //cancel first
+        if (buf) {
+            iio_buffer_cancel(buf);
+        }
+        //then destroy
+        if (buf) {
+            iio_buffer_destroy(buf);
+        }
 
 		items_in_buffer = 0;
+        byte_offset = 0;
+
 		buf = iio_device_create_buffer(dev, _buffer_size, false);
 		if (!buf) {
 			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
