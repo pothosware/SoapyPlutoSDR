@@ -122,52 +122,128 @@ bool SoapyPlutoSDR::getFullDuplex( const int direction, const size_t channel ) c
  * Settings API
  ******************************************************************/
 
+std::vector<std::string> Split(const std::string &subject)
+{
+	std::istringstream ss{subject};
+	using StrIt = std::istream_iterator<std::string>;
+	std::vector<std::string> container{StrIt{ss}, StrIt{}};
+	return container;
+}
+
 SoapySDR::ArgInfoList SoapyPlutoSDR::getSettingInfo(void) const
 {
 	SoapySDR::ArgInfoList setArgs;
 	/*
 	18 device-specific attributes
-		 0: calib_mode value: auto
-		 1: calib_mode_available value: auto manual manual_tx_quad tx_quad rf_dc_offs rssi_gain_step
+		 0: calib_mode 'auto'
+		 	1: calib_mode_available 'auto manual manual_tx_quad tx_quad rf_dc_offs rssi_gain_step'
 		 2: dcxo_tune_coarse ERROR: Operation not supported by device (-19)
-		 3: dcxo_tune_coarse_available value: [0 0 0]
+		 	3: dcxo_tune_coarse_available '[0 0 0]'
 		 4: dcxo_tune_fine ERROR: Operation not supported by device (-19)
-		 5: dcxo_tune_fine_available value: [0 0 0]
-		 6: ensm_mode value: fdd
-		 7: ensm_mode_available value: sleep wait alert fdd pinctrl pinctrl_fdd_indep
-		 8: filter_fir_config value: FIR Rx: 0,0 Tx: 0,0
+		 	5: dcxo_tune_fine_available '[0 0 0]'
+		 6: ensm_mode 'fdd'
+		 	7: ensm_mode_available 'sleep wait alert fdd pinctrl pinctrl_fdd_indep'
+		 8: filter_fir_config 'FIR Rx: 0,0 Tx: 0,0'
 		 9: gain_table_config ERROR: Input/output error (-5)
 		10: multichip_sync ERROR: Permission denied (-13)
-		11: rssi_gain_step_error value: lna_error: 0 0 0 0\nmixer_error: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\ngain_step_calib_reg_val: 0 0 0 0 0
-		12: rx_path_rates value: BBPLL:983040004 ADC:245760001 R2:122880000 R1:61440000 RF:30720000 RXSAMP:30720000
-		13: trx_rate_governor value: nominal
-		14: trx_rate_governor_available value: nominal highest_osr
-		15: tx_path_rates value: BBPLL:983040004 DAC:122880000 T2:122880000 T1:61440000 TF:30720000 TXSAMP:30720000
-		16: xo_correction value: 39999976
-		17: xo_correction_available value: [39991977 1 40007975]
+		11: rssi_gain_step_error 'lna_error: 0 0 0 0\nmixer_error: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\ngain_step_calib_reg_val: 0 0 0 0 0'
+		12: rx_path_rates 'BBPLL:983040004 ADC:245760001 R2:122880000 R1:61440000 RF:30720000 RXSAMP:30720000'
+		13: trx_rate_governor 'nominal'
+			14: trx_rate_governor_available 'nominal highest_osr'
+		15: tx_path_rates 'BBPLL:983040004 DAC:122880000 T2:122880000 T1:61440000 TF:30720000 TXSAMP:30720000'
+		16: xo_correction '39999976'
+			17: xo_correction_available '[39991977 1 40007975]'
 	*/
+
+	// This should work for the general case but isn't very useful
+	/*
 	unsigned int attrs_count = iio_device_get_attrs_count(dev);
+	const char *attrs[attrs_count];
+	for (unsigned int index = 0; index < attrs_count; ++index)
+	{
+		attrs[index] = iio_device_get_attr(dev, index);
+	}
 
 	for (unsigned int index = 0; index < attrs_count; ++index)
 	{
-		SoapySDR::ArgInfo arg;
-
-		const char *attr = iio_device_get_attr(dev, index);
-		arg.key = attr;
-		//arg.value = "true";
-		arg.name = attr;
-		arg.description = attr;
-		//arg.type = SoapySDR::ArgInfo::BOOL;
-		setArgs.push_back(arg);
+		const char *attr = attrs[index];
+		size_t attr_len = strlen(attr);
+		if (attr_len < (sizeof("_available") - 1)
+				|| strcmp(attr + attr_len - (sizeof("_available") - 1), "_available"))
+		{
+			SoapySDR::ArgInfo arg;
+			arg.key = attr;
+			//arg.value = "true";
+			arg.name = attr;
+			//arg.description = attr;
+			arg.type = SoapySDR::ArgInfo::STRING;
+			if (index <= 9) // huh?
+			setArgs.push_back(arg);
+		}
 	}
+	*/
+
+	std::vector<std::string> calib_mode_available;
+	calib_mode_available.push_back("auto");
+	calib_mode_available.push_back("manual");
+	calib_mode_available.push_back("manual_tx_quad");
+	calib_mode_available.push_back("tx_quad");
+	calib_mode_available.push_back("rf_dc_offs");
+	calib_mode_available.push_back("rssi_gain_step");
+
+	SoapySDR::ArgInfo calib_mode;
+	calib_mode.key = "calib_mode";
+	calib_mode.value = "auto";
+	calib_mode.name = "Calibration Mode";
+	calib_mode.options = calib_mode_available;
+	calib_mode.type = SoapySDR::ArgInfo::STRING;
+	setArgs.push_back(calib_mode);
+
+	std::vector<std::string> ensm_mode_available;
+	ensm_mode_available.push_back("sleep");
+	ensm_mode_available.push_back("wait");
+	ensm_mode_available.push_back("alert");
+	ensm_mode_available.push_back("fdd");
+	ensm_mode_available.push_back("pinctrl");
+	ensm_mode_available.push_back("pinctrl_fdd_indep");
+
+	SoapySDR::ArgInfo ensm_mode;
+	ensm_mode.key = "ensm_mode";
+	ensm_mode.value = "fdd";
+	ensm_mode.name = "Ensm Mode";
+	ensm_mode.options = ensm_mode_available;
+	ensm_mode.type = SoapySDR::ArgInfo::STRING;
+	setArgs.push_back(ensm_mode);
+
+	std::vector<std::string> trx_rate_governor_available;
+	trx_rate_governor_available.push_back("nominal");
+	trx_rate_governor_available.push_back("highest_osr");
+
+	SoapySDR::ArgInfo trx_rate_governor;
+	trx_rate_governor.key = "trx_rate_governor";
+	trx_rate_governor.value = "nominal";
+	trx_rate_governor.name = "TRX Rate Governor";
+	trx_rate_governor.options = trx_rate_governor_available;
+	trx_rate_governor.type = SoapySDR::ArgInfo::STRING;
+	setArgs.push_back(trx_rate_governor);
+
+	SoapySDR::Range xo_correction_available(39991977, 40007975, 1);
+
+	SoapySDR::ArgInfo xo_correction;
+	xo_correction.key = "xo_correction";
+	xo_correction.value = "40000000";
+	xo_correction.name = "XO Correction";
+	xo_correction.range = xo_correction_available;
+	xo_correction.type = SoapySDR::ArgInfo::STRING;
+	setArgs.push_back(xo_correction);
 
 	return setArgs;
 }
 
 void SoapyPlutoSDR::writeSetting(const std::string &key, const std::string &value)
 {
-	std::lock_guard<pluto_spin_mutex> rx_lock(rx_device_mutex);
-	std::lock_guard<pluto_spin_mutex> tx_lock(rx_device_mutex);
+	//std::lock_guard<pluto_spin_mutex> rx_lock(rx_device_mutex);
+	//std::lock_guard<pluto_spin_mutex> tx_lock(tx_device_mutex);
 	iio_device_attr_write(dev, key.c_str(), value.c_str());
 }
 
@@ -179,8 +255,8 @@ std::string SoapyPlutoSDR::readSetting(const std::string &key) const
 	ssize_t len;
 
 	{
-		std::lock_guard<pluto_spin_mutex> rx_lock(rx_device_mutex);
-		std::lock_guard<pluto_spin_mutex> tx_lock(rx_device_mutex);
+		//std::lock_guard<pluto_spin_mutex> rx_lock(rx_device_mutex);
+		//std::lock_guard<pluto_spin_mutex> tx_lock(tx_device_mutex);
 		len = iio_device_attr_read(dev, key.c_str(), value, sizeof(value));
 	}
 
@@ -188,7 +264,11 @@ std::string SoapyPlutoSDR::readSetting(const std::string &key) const
 	{
 		info.assign(value, len);
 	}
-
+	else
+	{
+		iio_strerror(len, value, sizeof(value));
+		info.assign(value);
+	}
 	return info;
 }
 
@@ -197,45 +277,72 @@ SoapySDR::ArgInfoList SoapyPlutoSDR::getSettingInfo(const int direction, const s
 	SoapySDR::ArgInfoList setArgs;
 	/*
 	voltage2:  (output) 8 channel-specific attributes found:
-		0: filter_fir_en value: 0
-		1: raw value: 306
-		2: rf_bandwidth value: 18000000
-		3: rf_bandwidth_available value: [200000 1 40000000]
-		4: rf_port_select_available value: A B
-		5: sampling_frequency value: 30720000
-		6: sampling_frequency_available value: [2083333 1 61440000]
-		7: scale value: 1.000000
+		0: filter_fir_en '0'
+		1: raw '306'
+		2: rf_bandwidth '18000000'
+			3: rf_bandwidth_available '[200000 1 40000000]'
+			4: rf_port_select_available 'A B'
+		5: sampling_frequency '30720000'
+			6: sampling_frequency_available '[2083333 1 61440000]'
+		7: scale '1.000000'
 	voltage2:  (input)	13 channel-specific attributes found:
-		 0: bb_dc_offset_tracking_en value: 1
-		 1: filter_fir_en value: 0
-		 2: gain_control_mode_available value: manual fast_attack slow_attack hybrid
-		 3: offset value: 57
-		 4: quadrature_tracking_en value: 1
-		 5: raw value: 2004
-		 6: rf_bandwidth value: 18000000
-		 7: rf_bandwidth_available value: [200000 1 56000000]
-		 8: rf_dc_offset_tracking_en value: 1
-		 9: rf_port_select_available value: A_BALANCED B_BALANCED C_BALANCED A_N A_P B_N B_P C_N C_P TX_MONITOR1 TX_MONITOR2 TX_MONITOR1_2
-		10: sampling_frequency value: 30720000
-		11: sampling_frequency_available value: [2083333 1 61440000]
-		12: scale value: 0.305250
+		 0: bb_dc_offset_tracking_en '1'
+		 1: filter_fir_en '0'
+		 	2: gain_control_mode_available 'manual fast_attack slow_attack hybrid'
+		 3: offset '57'
+		 4: quadrature_tracking_en '1'
+		 5: raw '2004'
+		 6: rf_bandwidth '18000000'
+		 	7: rf_bandwidth_available '[200000 1 56000000]'
+		 8: rf_dc_offset_tracking_en '1'
+		 	9: rf_port_select_available 'A_BALANCED B_BALANCED C_BALANCED A_N A_P B_N B_P C_N C_P TX_MONITOR1 TX_MONITOR2 TX_MONITOR1_2'
+		10: sampling_frequency '30720000'
+			11: sampling_frequency_available '[2083333 1 61440000]'
+		12: scale '0.305250'
+
+	Whitelist only these?
+	voltage2:  (output):
+		0: filter_fir_en '0'
+	voltage2:  (input):
+		0: bb_dc_offset_tracking_en '1'
+		1: filter_fir_en '0'
+		4: quadrature_tracking_en '1'
+		8: rf_dc_offset_tracking_en '1'
 	*/
 
 	iio_channel *chn = iio_device_find_channel(dev, "voltage2", (direction == SOAPY_SDR_TX));
 
 	unsigned int attrs_count = iio_channel_get_attrs_count(chn);
+	const char *attrs[attrs_count];
+	for (unsigned int index = 0; index < attrs_count; ++index)
+	{
+		attrs[index] = iio_channel_get_attr(chn, index);
+	}
+
+	// TODO: convert "_available" [min step max] to Range(minimum, maximum, step)
+	// TODO: convert "_available" 'bare words' to std::vector<std::string> options
 
 	for (unsigned int index = 0; index < attrs_count; ++index)
 	{
-		SoapySDR::ArgInfo arg;
-
-		const char *attr = iio_channel_get_attr(chn, index);
-		arg.key = attr;
-		//arg.value = "true";
-		arg.name = attr;
-		arg.description = attr;
-		//arg.type = SoapySDR::ArgInfo::BOOL;
-		setArgs.push_back(arg);
+		const char *attr = attrs[index];
+		size_t attr_len = strlen(attr);
+		if ((attr_len < (sizeof("_available") - 1)
+				|| strcmp(attr + attr_len - (sizeof("_available") - 1), "_available"))
+				&& strcmp(attr, "input")
+				&& strcmp(attr, "raw")
+				&& strcmp(attr, "offset")
+				&& strcmp(attr, "scale")
+				&& strcmp(attr, "rf_bandwidth")
+				&& strcmp(attr, "sampling_frequency"))
+		{
+			SoapySDR::ArgInfo arg;
+			arg.key = attr;
+			//arg.value = "true";
+			arg.name = attr;
+			//arg.description = attr;
+			arg.type = SoapySDR::ArgInfo::BOOL;
+			setArgs.push_back(arg);
+		}
 	}
 
 	return setArgs;
@@ -277,6 +384,11 @@ std::string SoapyPlutoSDR::readSetting(const int direction, const size_t channel
 	if (len > 0)
 	{
 		info.assign(value, len);
+	}
+	else
+	{
+		iio_strerror(len, value, sizeof(value));
+		info.assign(value);
 	}
 
 	return info;
