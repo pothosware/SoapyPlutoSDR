@@ -185,6 +185,17 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 
 
 		/*******************************************************************
+ 		 * Sensor API
+ 		 ******************************************************************/
+
+		std::vector<std::string> listSensors(void) const;
+
+		SoapySDR::ArgInfo getSensorInfo(const std::string &key) const;
+
+		std::string readSensor(const std::string &key) const;
+
+
+		/*******************************************************************
 		 * Settings API
 		 ******************************************************************/
 
@@ -292,6 +303,10 @@ class SoapyPlutoSDR : public SoapySDR::Device{
         bool IsValidRxStreamHandle(SoapySDR::Stream* handle) const;
         bool IsValidTxStreamHandle(SoapySDR::Stream* handle);
        
+		bool is_sensor_channel(struct iio_channel *chn) const;
+		double get_sensor_value(struct iio_channel *chn) const;
+		const char *id_to_unit(const char *id) const;
+
 		iio_device *dev;
 		iio_device *rx_dev;
 		iio_device *tx_dev;
