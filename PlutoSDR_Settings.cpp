@@ -130,6 +130,17 @@ bool SoapyPlutoSDR::is_sensor_channel(struct iio_channel *chn) const
 			iio_channel_find_attr(chn, "input")));
 }
 
+double SoapyPlutoSDR::double_from_buf(const char *buf) const
+{
+	std::istringstream val_as_string(buf);
+	val_as_string.imbue(std::locale::classic()); // ignore global C++ locale
+
+	double val = 0.0;
+	val_as_string >> val;
+
+	return val;
+}
+
 double SoapyPlutoSDR::get_sensor_value(struct iio_channel *chn) const
 {
 	char buf[32];
@@ -137,30 +148,22 @@ double SoapyPlutoSDR::get_sensor_value(struct iio_channel *chn) const
 
 	if (iio_channel_find_attr(chn, "input")) {
 		if (iio_channel_attr_read(chn, "input", buf, sizeof(buf)) > 0) {
-			std::istringstream val_as_string(buf);
-			val_as_string >> val;
+			val = double_from_buf(buf);
 		}
 	} else {
 		if (iio_channel_attr_read(chn, "raw", buf, sizeof(buf)) > 0) {
-			std::istringstream val_as_string(buf);
-			val_as_string >> val;
+			val = double_from_buf(buf);
 		}
 
 		if (iio_channel_find_attr(chn, "offset")) {
 			if (iio_channel_attr_read(chn, "offset", buf, sizeof(buf)) > 0) {
-				std::istringstream val_as_string(buf);
-				double offset = 0.0;
-				val_as_string >> offset;
-				val += offset;
+				val += double_from_buf(buf);
 			}
 		}
 
 		if (iio_channel_find_attr(chn, "scale")) {
 			if (iio_channel_attr_read(chn, "scale", buf, sizeof(buf)) > 0) {
-				std::istringstream val_as_string(buf);
-				double scale = 0.0;
-				val_as_string >> scale;
-				val *= scale;
+				val *= double_from_buf(buf);
 			}
 		}
 	}

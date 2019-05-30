@@ -304,6 +304,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
         bool IsValidTxStreamHandle(SoapySDR::Stream* handle);
        
 		bool is_sensor_channel(struct iio_channel *chn) const;
+		double double_from_buf(const char *buf) const;
 		double get_sensor_value(struct iio_channel *chn) const;
 		std::string id_to_unit(const std::string &id) const;
 
