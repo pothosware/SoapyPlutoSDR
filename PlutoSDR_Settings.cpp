@@ -132,58 +132,59 @@ bool SoapyPlutoSDR::is_sensor_channel(struct iio_channel *chn) const
 
 double SoapyPlutoSDR::get_sensor_value(struct iio_channel *chn) const
 {
-	char *old_locale;
 	char buf[32];
 	double val = 0.0;
 
-	old_locale = strdup(setlocale(LC_NUMERIC, NULL));
-	setlocale(LC_NUMERIC, "C");
-
 	if (iio_channel_find_attr(chn, "input")) {
-		if (iio_channel_attr_read(chn, "input", buf, sizeof(buf)) > 0)
-			val = strtod(buf, NULL);
+		if (iio_channel_attr_read(chn, "input", buf, sizeof(buf)) > 0) {
+			std::istringstream val_as_string(buf);
+			val_as_string >> val;
+		}
 	} else {
-		if (iio_channel_attr_read(chn, "raw", buf, sizeof(buf)) > 0)
-			val = strtod(buf, NULL);
+		if (iio_channel_attr_read(chn, "raw", buf, sizeof(buf)) > 0) {
+			std::istringstream val_as_string(buf);
+			val_as_string >> val;
+		}
 
 		if (iio_channel_find_attr(chn, "offset")) {
-			if (iio_channel_attr_read(chn, "offset", buf, sizeof(buf)) > 0)
-				val += strtod(buf, NULL);
+			if (iio_channel_attr_read(chn, "offset", buf, sizeof(buf)) > 0) {
+				std::istringstream val_as_string(buf);
+				double offset = 0.0;
+				val_as_string >> offset;
+				val += offset;
+			}
 		}
 
 		if (iio_channel_find_attr(chn, "scale")) {
-			if (iio_channel_attr_read(chn, "scale", buf, sizeof(buf)) > 0)
-				val *= strtod(buf, NULL);
+			if (iio_channel_attr_read(chn, "scale", buf, sizeof(buf)) > 0) {
+				std::istringstream val_as_string(buf);
+				double scale = 0.0;
+				val_as_string >> scale;
+				val *= scale;
+			}
 		}
 	}
-
-	setlocale(LC_NUMERIC, old_locale);
-	free(old_locale);
 
 	return val / 1000.0;
 }
 
-const char *SoapyPlutoSDR::id_to_unit(const char *id) const
+std::string SoapyPlutoSDR::id_to_unit(const std::string& id) const
 {
-	static struct {
-		const char *id;
-		const char *unit;
-	} map[] = {
+	static std::map<std::string, std::string> id_to_unit_table = {
 		{ "current",	"A" },
 		{ "power",	"W" },
 		{ "temp",	"C" },
 		{ "voltage",	"V" },
-		{ 0, },
 	};
 
-	unsigned int i;
+	for (auto it_match : id_to_unit_table) {
 
-	for (i = 0; map[i].id; ++i) {
-		if (!strncmp(id, map[i].id, strlen(map[i].id)))
-			return map[i].unit;
+		//if the id starts with a known prefix, retreive its unit.
+		if (id.substr(0, it_match.first.size()) == it_match.first) {
+			return it_match.second;
+		}
 	}
-
-	return "";
+	return std::string();
 }
 
 std::vector<std::string> SoapyPlutoSDR::listSensors(void) const
@@ -253,7 +254,7 @@ SoapySDR::ArgInfo SoapyPlutoSDR::getSensorInfo(const std::string &key) const
 			info.name = name;
 		info.type = SoapySDR::ArgInfo::FLOAT;
 		info.value = "0.0";
-		info.units = id_to_unit(channelStr.c_str());
+		info.units = id_to_unit(channelStr);
 	}
 
 	return info;
