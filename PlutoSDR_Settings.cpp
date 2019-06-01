@@ -118,6 +118,176 @@ bool SoapyPlutoSDR::getFullDuplex( const int direction, const size_t channel ) c
 	return(true);
 }
 
+
+/*******************************************************************
+ * Sensor API
+ ******************************************************************/
+
+bool SoapyPlutoSDR::is_sensor_channel(struct iio_channel *chn) const
+{
+	return (!iio_channel_is_output(chn) &&
+			(iio_channel_find_attr(chn, "raw") ||
+			iio_channel_find_attr(chn, "input")));
+}
+
+double SoapyPlutoSDR::double_from_buf(const char *buf) const
+{
+	std::istringstream val_as_string(buf);
+	val_as_string.imbue(std::locale::classic()); // ignore global C++ locale
+
+	double val = 0.0;
+	val_as_string >> val;
+
+	return val;
+}
+
+double SoapyPlutoSDR::get_sensor_value(struct iio_channel *chn) const
+{
+	char buf[32];
+	double val = 0.0;
+
+	if (iio_channel_find_attr(chn, "input")) {
+		if (iio_channel_attr_read(chn, "input", buf, sizeof(buf)) > 0) {
+			val = double_from_buf(buf);
+		}
+	} else {
+		if (iio_channel_attr_read(chn, "raw", buf, sizeof(buf)) > 0) {
+			val = double_from_buf(buf);
+		}
+
+		if (iio_channel_find_attr(chn, "offset")) {
+			if (iio_channel_attr_read(chn, "offset", buf, sizeof(buf)) > 0) {
+				val += double_from_buf(buf);
+			}
+		}
+
+		if (iio_channel_find_attr(chn, "scale")) {
+			if (iio_channel_attr_read(chn, "scale", buf, sizeof(buf)) > 0) {
+				val *= double_from_buf(buf);
+			}
+		}
+	}
+
+	return val / 1000.0;
+}
+
+std::string SoapyPlutoSDR::id_to_unit(const std::string& id) const
+{
+	static std::map<std::string, std::string> id_to_unit_table = {
+		{ "current",	"A" },
+		{ "power",	"W" },
+		{ "temp",	"C" },
+		{ "voltage",	"V" },
+	};
+
+	for (auto it_match : id_to_unit_table) {
+
+		//if the id starts with a known prefix, retreive its unit.
+		if (id.substr(0, it_match.first.size()) == it_match.first) {
+			return it_match.second;
+		}
+	}
+	return std::string();
+}
+
+std::vector<std::string> SoapyPlutoSDR::listSensors(void) const
+{
+	/*
+	iio:device2: xadc
+		10 channels found:
+			temp0:  (input)
+			voltage0: vccint (input)
+			voltage1: vccaux (input)
+			voltage2: vccbram (input)
+			voltage3: vccpint (input)
+			voltage4: vccpaux (input)
+			voltage5: vccoddr (input)
+			voltage6: vrefp (input)
+			voltage7: vrefn (input)
+			voltage8:  (input)
+	iio:device0: adm1177
+		2 channels found:
+			current0:  (input)
+			voltage0:  (input)
+ 	iio:device1: ad9361-phy
+		9 channels found:
+			temp0:  (input)
+			voltage2:  (input)
+	*/
+	std::vector<std::string> sensors;
+
+	sensors.push_back("xadc_temp0");
+	sensors.push_back("xadc_voltage0");
+	sensors.push_back("xadc_voltage1");
+	sensors.push_back("xadc_voltage2");
+	sensors.push_back("xadc_voltage3");
+	sensors.push_back("xadc_voltage4");
+	sensors.push_back("xadc_voltage5");
+	sensors.push_back("xadc_voltage6");
+	sensors.push_back("xadc_voltage7");
+	sensors.push_back("xadc_voltage8");
+	sensors.push_back("adm1177_current0");
+	sensors.push_back("adm1177_voltage0");
+	sensors.push_back("ad9361-phy_temp0");
+	sensors.push_back("ad9361-phy_voltage2");
+
+	return sensors;
+}
+
+SoapySDR::ArgInfo SoapyPlutoSDR::getSensorInfo(const std::string &key) const
+{
+	SoapySDR::ArgInfo info;
+
+	std::size_t dash = key.find("_");
+	if (dash < std::string::npos)
+	{
+		std::string deviceStr = key.substr(0, dash);
+		std::string channelStr = key.substr(dash + 1);
+
+		iio_device *dev = iio_context_find_device(ctx, deviceStr.c_str());
+		if (!dev)
+			return info;
+		iio_channel *chn = iio_device_find_channel(dev, channelStr.c_str(), false);
+		if (!chn)
+			return info;
+
+		const char *name = iio_channel_get_name(chn);
+		info.key = key;
+		if (name)
+			info.name = name;
+		info.type = SoapySDR::ArgInfo::FLOAT;
+		info.value = "0.0";
+		info.units = id_to_unit(channelStr);
+	}
+
+	return info;
+}
+
+std::string SoapyPlutoSDR::readSensor(const std::string &key) const
+{
+	std::string sensorValue;
+
+	std::size_t dash = key.find("_");
+	if (dash < std::string::npos)
+	{
+		std::string deviceStr = key.substr(0, dash);
+		std::string channelStr = key.substr(dash + 1);
+
+		iio_device *dev = iio_context_find_device(ctx, deviceStr.c_str());
+		if (!dev)
+			return sensorValue;
+		iio_channel *chn = iio_device_find_channel(dev, channelStr.c_str(), false);
+		if (!chn)
+			return sensorValue;
+
+		double value = get_sensor_value(chn);
+		sensorValue.assign(std::to_string(value));
+	}
+
+	return sensorValue;
+}
+
+
 /*******************************************************************
  * Settings API
  ******************************************************************/
