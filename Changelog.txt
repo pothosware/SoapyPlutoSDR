@@ -1,4 +1,4 @@
-Release 0.2.0 (pending)
+Release 0.2.0 (2019-06-22)
 ==========================
 
 - Added support for sensors: temperature and power
