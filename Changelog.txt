@@ -1,6 +1,8 @@
-Release 0.1.1 (pending)
+Release 0.2.0 (pending)
 ==========================
 
+- Added support for sensors: temperature and power
+- Stream improvements: mtu changes, added CS12 support
 - Fix pthread link for SoapySDR upstream cmake changes
 - Fixed typo in spelling of PlutoSDR support module
 
