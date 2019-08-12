@@ -3,8 +3,8 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
-#include <iterator> 
-#include <algorithm> 
+#include <iterator>
+#include <algorithm>
 #include <chrono>
 
 //TODO: Need to be a power of 2 for maximum efficiency ?
@@ -54,9 +54,9 @@ bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle) const
         //test if these handles really belong to us:
         if (reinterpret_cast<rx_streamer*>(handle) == rx_stream.get()) {
             return true;
-        } 
-    } 
- 
+        }
+    }
+
     return false;
 }
 
@@ -107,8 +107,8 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 			"setupStream invalid format '" + format + "' -- Only CS8, CS12, CS16 and CF32 are supported by SoapyPlutoSDR module.");
 	}
 
-    
-	if(direction == SOAPY_SDR_RX){	
+
+	if(direction == SOAPY_SDR_RX){
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
@@ -140,7 +140,7 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
             this->rx_stream.reset();
         }
     }
-    
+
     //scope lock :
     {
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
@@ -156,7 +156,7 @@ size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
     std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
     if (IsValidRxStreamHandle(handle)) {
- 
+
         return this->rx_stream->get_mtu_size();
     }
 
@@ -168,7 +168,7 @@ int SoapyPlutoSDR::activateStream(
 		const int flags,
 		const long long timeNs,
 		const size_t numElems )
-{	
+{
 	if (flags & ~SOAPY_SDR_END_BURST)
 		return SOAPY_SDR_NOT_SUPPORTED;
 
@@ -241,7 +241,7 @@ int SoapyPlutoSDR::writeStream(
     } else {
         return SOAPY_SDR_NOT_SUPPORTED;
     }
-  
+
 }
 
 int SoapyPlutoSDR::readStreamStatus(
@@ -256,7 +256,7 @@ int SoapyPlutoSDR::readStreamStatus(
 
 void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
-    //Adapt buffer size (= MTU) as a tradeoff to minimize readStream overhead but at 
+    //Adapt buffer size (= MTU) as a tradeoff to minimize readStream overhead but at
     //the same time allow realtime applications. Keep it a power of 2 which seems to be better.
     //so try to target very roughly 60fps [30 .. 100] readStream calls / s for realtime applications.
     int rounded_nb_samples_per_call = (int)::round(samplerate / 60.0);
@@ -268,7 +268,7 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
     }
 
     this->set_buffer_size(1 << power_of_2_nb_samples);
-   
+
 	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting Buffer Size: %lu", (unsigned long)buffer_size);
 
     //Recompute MTU from buffer size change.
@@ -320,19 +320,19 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 	}else{
 
 		long long samplerate;
-		
+
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
-		
+
 		this->set_buffer_size_by_samplerate(samplerate);
-	
+
 	}
 }
 
-rx_streamer::~rx_streamer() 
+rx_streamer::~rx_streamer()
 {
 	if (buf) {
         iio_buffer_cancel(buf);
-        iio_buffer_destroy(buf); 
+        iio_buffer_destroy(buf);
     }
 
     for (unsigned int i = 0; i < channel_list.size(); ++i) {
@@ -481,7 +481,7 @@ int rx_streamer::start(const int flags,
     //force proper stop before
     stop(flags, timeNs);
 
-    // re-create buffer 
+    // re-create buffer
 	buf = iio_device_create_buffer(dev, buffer_size, false);
 
 	if (!buf) {
@@ -537,7 +537,7 @@ void rx_streamer::set_buffer_size(const size_t _buffer_size){
 			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
 			throw std::runtime_error("Unable to create buffer!\n");
 		}
-			
+
 	}
 
 	this->buffer_size=_buffer_size;
