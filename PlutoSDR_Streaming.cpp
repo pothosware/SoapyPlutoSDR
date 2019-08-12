@@ -287,7 +287,7 @@ void rx_streamer::set_mtu_size(const size_t mtu_size) {
 
 
 rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args):
-	dev(_dev), buffer_size(DEFAULT_RX_BUFFER_SIZE), mtu_size(DEFAULT_RX_BUFFER_SIZE), buf(nullptr), format(_format)
+	dev(_dev), buffer_size(DEFAULT_RX_BUFFER_SIZE), buf(nullptr), format(_format), mtu_size(DEFAULT_RX_BUFFER_SIZE)
 
 {
 	if (dev == nullptr) {
