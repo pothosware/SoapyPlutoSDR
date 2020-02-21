@@ -112,6 +112,9 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
+		iio_channel_attr_write_bool(
+			iio_device_find_channel(dev, "altvoltage0", true), "powerdown", false); // Turn ON RX LO
+
         this->rx_stream = std::unique_ptr<rx_streamer>(new rx_streamer (rx_dev, streamFormat, channels, args));
 
         return reinterpret_cast<SoapySDR::Stream*>(this->rx_stream.get());
@@ -120,6 +123,9 @@ SoapySDR::Stream *SoapyPlutoSDR::setupStream(
 	else if (direction == SOAPY_SDR_TX) {
 
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
+
+		iio_channel_attr_write_bool(
+			iio_device_find_channel(dev, "altvoltage1", true), "powerdown", false); // Turn ON TX LO
 
         this->tx_stream = std::unique_ptr<tx_streamer>(new tx_streamer (tx_dev, streamFormat, channels, args));
 
@@ -138,6 +144,9 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 
         if (IsValidRxStreamHandle(handle)) {
             this->rx_stream.reset();
+
+			iio_channel_attr_write_bool(
+				iio_device_find_channel(dev, "altvoltage0", true), "powerdown", true); // Turn OFF RX LO
         }
     }
 
@@ -147,6 +156,9 @@ void SoapyPlutoSDR::closeStream( SoapySDR::Stream *handle)
 
         if (IsValidTxStreamHandle(handle)) {
             this->tx_stream.reset();
+
+			iio_channel_attr_write_bool(
+				iio_device_find_channel(dev, "altvoltage1", true), "powerdown", true); // Turn OFF TX LO
         }
     }
 }
