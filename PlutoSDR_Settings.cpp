@@ -361,7 +361,7 @@ std::string SoapyPlutoSDR::getAntenna( const int direction, const size_t channel
 
 bool SoapyPlutoSDR::hasDCOffsetMode( const int direction, const size_t channel ) const
 {
-	return(true);
+	return(false);
 }
 
 /*******************************************************************
