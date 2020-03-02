@@ -60,7 +60,7 @@ bool SoapyPlutoSDR::IsValidRxStreamHandle(SoapySDR::Stream* handle) const
     return false;
 }
 
-bool SoapyPlutoSDR::IsValidTxStreamHandle(SoapySDR::Stream* handle)
+bool SoapyPlutoSDR::IsValidTxStreamHandle(SoapySDR::Stream* handle) const
 {
     if (handle == nullptr) {
         return false;
@@ -159,6 +159,10 @@ size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
 
         return this->rx_stream->get_mtu_size();
     }
+
+	if (IsValidTxStreamHandle(handle)) {
+		return 4096;
+	}
 
     return 0;
 }
