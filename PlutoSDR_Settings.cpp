@@ -534,14 +534,19 @@ SoapySDR::RangeList SoapyPlutoSDR::getFrequencyRange( const int direction, const
 void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, const double rate )
 {
 	long long samplerate =(long long) rate;
+#ifdef HAS_AD9361_IIO
+	int const fir = 4; // assume ad9361_set_bb_rate() will load x4 FIR if needed
+#else
+	int const fir = 1;
+#endif
 
-	// note: sample rates below 25e6/12 need x8 decimation/interpolation (or x4 FIR to 25e6/48),
+	// note: sample rates below 25e6/12 need x8 decimation/interpolation or x4 FIR to 25e6/48,
 	// below 25e6/96 need x8 decimation/interpolation and x4 FIR, minimum is 25e6/384
-	// we should probably detect if a FIR is loaded and not use x8 decimation/interpolation then.
+	// if libad9361 is available it will load an approporiate FIR.
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		decimation = false;
-		if (samplerate<(25e6 / 12)) {
+		if (samplerate < (25e6 / (12 * fir))) {
 			if (samplerate * 8 < (25e6 / 48)) {
 				SoapySDR_logf(SOAPY_SDR_CRITICAL, "sample rate is not supported.");
 			}
@@ -564,7 +569,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 	else if(direction==SOAPY_SDR_TX){
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		interpolation = false;
-		if (samplerate<(25e6 / 12)) {
+		if (samplerate < (25e6 / (12 * fir))) {
 			if (samplerate * 8 < (25e6 / 48)) {
 				SoapySDR_logf(SOAPY_SDR_CRITICAL, "sample rate is not supported.");
 			}
