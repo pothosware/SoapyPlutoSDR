@@ -20,15 +20,15 @@ find_package(SoapySDR NO_MODULE)
 # Find libiio
 ########################################################################
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
-find_package(libiio 0.9 REQUIRED)
+find_package(LibIIO 0.9 REQUIRED)
 
-if (LIBIIO_FOUND)
-    message(STATUS "LIBIIO_INCLUDE_DIRS: ${LIBIIO_INCLUDE_DIRS}")
-    message(STATUS "LIBIIO_LIBRARIES: ${LIBIIO_LIBRARIES}")
-    message(STATUS "LIBIIO_DEFINITIONS: ${LIBIIO_DEFINITIONS}")
+if (LibIIO_FOUND)
+    message(STATUS "LibIIO_INCLUDE_DIRS: ${LibIIO_INCLUDE_DIRS}")
+    message(STATUS "LibIIO_LIBRARIES: ${LibIIO_LIBRARIES}")
+    message(STATUS "LibIIO_DEFINITIONS: ${LibIIO_DEFINITIONS}")
 endif()
 
-include_directories(${LIBIIO_INCLUDE_DIRS})
+include_directories(${LibIIO_INCLUDE_DIRS})
 
 #enable c++11 features
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -43,7 +43,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     endif()
 
     #Thread support enabled (not the same as -lpthread)
-    list(APPEND LIBIIO_LIBRARIES -pthread)
+    list(APPEND LibIIO_LIBRARIES -pthread)
 
     #disable warnings for unused parameters
     add_definitions(-Wno-unused-parameter)
@@ -57,13 +57,13 @@ endif(APPLE)
 ########################################################################
 # Find libad9361
 ########################################################################
-find_package(libad9361)
+find_package(LibAD9361)
 
-if (LIBAD9361_FOUND)
-    message(STATUS "LIBAD9361_INCLUDE_DIRS: ${LIBAD9361_INCLUDE_DIRS}")
-    message(STATUS "LIBAD9361_LIBRARIES: ${LIBAD9361_LIBRARIES}")
-    message(STATUS "LIBAD9361_DEFINITIONS: ${LIBAD9361_DEFINITIONS}")
-    include_directories(${LIBAD9361_INCLUDE_DIRS})
+if (LibAD9361_FOUND)
+    message(STATUS "LibAD9361_INCLUDE_DIRS: ${LibAD9361_INCLUDE_DIRS}")
+    message(STATUS "LibAD9361_LIBRARIES: ${LibAD9361_LIBRARIES}")
+    message(STATUS "LibAD9361_DEFINITIONS: ${LibAD9361_DEFINITIONS}")
+    include_directories(${LibAD9361_INCLUDE_DIRS})
     add_definitions(-DHAS_AD9361_IIO)
 endif()
 
@@ -74,5 +74,5 @@ SOAPY_SDR_MODULE_UTIL(
     PlutoSDR_Registration.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
-    LIBRARIES ${LIBIIO_LIBRARIES} ${LIBAD9361_LIBRARIES}
+    LIBRARIES ${LibIIO_LIBRARIES} ${LibAD9361_LIBRARIES}
 )

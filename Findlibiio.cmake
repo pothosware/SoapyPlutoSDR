@@ -1,34 +1,34 @@
 # - Try to find libiio
 # Once done this will define
 #
-#  LIBIIO_FOUND - system has libiio
-#  LIBIIO_INCLUDE_DIRS - the libiio include directory
-#  LIBIIO_LIBRARIES - Link these to use libiio
-#  LIBIIO_DEFINITIONS - Compiler switches required for using libiio
+#  LibIIO_FOUND - system has libiio
+#  LibIIO_INCLUDE_DIRS - the libiio include directory
+#  LibIIO_LIBRARIES - Link these to use libiio
+#  LibIIO_DEFINITIONS - Compiler switches required for using libiio
 #
 # Redistribution and use is allowed according to the terms of the New BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 #
 
-include(FindPkgConfig)
-pkg_check_modules(PC_LIBIIO QUIET libiio)
-set(LIBIIO_DEFINITIONS ${PC_LIBIIO_CFLAGS_OTHER})
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PC_LibIIO QUIET libiio)
+set(LibIIO_DEFINITIONS ${PC_LibIIO_CFLAGS_OTHER})
 
-find_path(LIBIIO_INCLUDE_DIR iio.h
-          HINTS ${PC_LIBIIO_INCLUDEDIR} ${PC_LIBIIO_INCLUDE_DIRS}
+find_path(LibIIO_INCLUDE_DIR iio.h
+          HINTS ${PC_LibIIO_INCLUDEDIR} ${PC_LibIIO_INCLUDE_DIRS}
           PATH_SUFFIXES libiio)
 
-find_library(LIBIIO_LIBRARY NAMES iio libiio
-             HINTS ${PC_LIBIIO_LIBDIR} ${PC_LIBIIO_LIBRARY_DIRS})
+find_library(LibIIO_LIBRARY NAMES iio libiio
+             HINTS ${PC_LibIIO_LIBDIR} ${PC_LibIIO_LIBRARY_DIRS})
 
-set(LIBIIO_VERSION ${PC_LIBIIO_VERSION})
+set(LibIIO_VERSION ${PC_LibIIO_VERSION})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(libiio
-                                  REQUIRED_VARS LIBIIO_LIBRARY LIBIIO_INCLUDE_DIR
-                                  VERSION_VAR LIBIIO_VERSION)
+find_package_handle_standard_args(LibIIO
+                                  REQUIRED_VARS LibIIO_LIBRARY LibIIO_INCLUDE_DIR
+                                  VERSION_VAR LibIIO_VERSION)
 
-mark_as_advanced(LIBIIO_INCLUDE_DIR LIBIIO_LIBRARY)
+mark_as_advanced(LibIIO_INCLUDE_DIR LibIIO_LIBRARY)
 
-set(LIBIIO_LIBRARIES ${LIBIIO_LIBRARY})
-set(LIBIIO_INCLUDE_DIRS ${LIBIIO_INCLUDE_DIR})
+set(LibIIO_LIBRARIES ${LibIIO_LIBRARY})
+set(LibIIO_INCLUDE_DIRS ${LibIIO_INCLUDE_DIR})
