@@ -19,11 +19,14 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	ret = iio_scan_context_get_info_list(scan_ctx, &info);
 	if(ret < 0) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to scan: %li\n", (long)ret);
+		iio_context_info_list_free(info);
 		iio_scan_context_destroy(scan_ctx);
 		return results;
 	}
 	options["device"] = "plutosdr";
 	if(ret == 0){
+		iio_context_info_list_free(info);
+		iio_scan_context_destroy(scan_ctx);
 
 		//no devices discovered, the user must specify a hostname
 		if (args.count("hostname") == 0) return results;
@@ -49,6 +52,8 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			}
 
 	}
+		iio_context_info_list_free(info);
+		iio_scan_context_destroy(scan_ctx);
 	}
 
 	return results;
