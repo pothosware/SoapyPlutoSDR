@@ -28,16 +28,21 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	}
 
 	if (ctx == nullptr) {
-		SoapySDR_logf(SOAPY_SDR_ERROR, "not device found.");
-		throw std::runtime_error("not device found");
+		SoapySDR_logf(SOAPY_SDR_ERROR, "no device context found.");
+		throw std::runtime_error("no device context found");
 	}
 
 	dev = iio_context_find_device(ctx, "ad9361-phy");
 	rx_dev = iio_context_find_device(ctx, "cf-ad9361-lpc");
 	tx_dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
+
+	if (dev == nullptr || rx_dev == nullptr || tx_dev == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "no device found in this context.");
+		throw std::runtime_error("no device found in this context");
+	}
+
 	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
 	this->setAntenna(SOAPY_SDR_TX, 0, "A");
-
 }
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
