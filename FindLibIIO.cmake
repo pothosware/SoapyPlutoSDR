@@ -10,7 +10,7 @@
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 #
 
-find_package(PkgConfig REQUIRED)
+find_package(PkgConfig)
 pkg_check_modules(PC_LibIIO QUIET libiio)
 set(LibIIO_DEFINITIONS ${PC_LibIIO_CFLAGS_OTHER})
 
