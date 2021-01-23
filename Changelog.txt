@@ -1,3 +1,13 @@
+Release 0.2.1 (pending)
+==========================
+
+- Various fixes to cmake find package modules
+- Fix sample rates between 25e6/48 and 25e6/12
+- Fix hasDCOffsetMode to return false
+- Fix crash on non-PlutoSDR IIO context
+- Fix powerdown state in setupStream/closeStream
+- Fix TX getStreamMTU
+
 Release 0.2.0 (2019-06-22)
 ==========================
 
