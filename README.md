@@ -22,6 +22,14 @@ sudo make install
 
 * https://github.com/pothosware/SoapyPlutoSDR/wiki
 
+## PothosSDR
+
+Note that installation with PothosSDR is optional as "PlutoSDR SoapySDR binding (experimental)" and not selected by default.
+
+This is due to possible problems with other libusb devices,
+see [#24](https://github.com/pothosware/SoapyPlutoSDR/issues/24)
+and [libiio#586](https://github.com/analogdevicesinc/libiio/issues/586)
+
 ## Licensing information
 
 GNU LESSER GENERAL PUBLIC LICENSE Version 2.1, February 1999
