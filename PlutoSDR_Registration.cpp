@@ -46,8 +46,13 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[i]));
 			if (ctx != nullptr) {
 				options["uri"] = std::string(iio_context_info_get_uri(info[i]));
-				sprintf(label_str, "%s #%d %s", options["device"].c_str(), i, options["uri"].c_str());
-				results.push_back(options);
+
+				// if uri is specified in kwargs, discovered uri must match
+				if (args.count("uri") == 0 || options["uri"] == args.at("uri")) {
+					sprintf(label_str, "%s #%d %s", options["device"].c_str(), i, options["uri"].c_str());
+					results.push_back(options);
+				}
+
 				if (ctx != nullptr)iio_context_destroy(ctx);
 			}
 
