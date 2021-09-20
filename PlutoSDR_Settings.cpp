@@ -488,7 +488,7 @@ void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, con
 
 double SoapyPlutoSDR::getFrequency( const int direction, const size_t channel, const std::string &name ) const
 {
-  	long long freq;
+  	long long freq = 0;
 
 	if(direction==SOAPY_SDR_RX){
 
@@ -601,7 +601,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel ) const
 {
-	long long samplerate;
+	long long samplerate = 0;
 
 	if(direction==SOAPY_SDR_RX){
 
@@ -678,7 +678,7 @@ void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, con
 
 double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) const
 {
-    long long bandwidth;
+    long long bandwidth = 0;
 
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
