@@ -645,19 +645,17 @@ int tx_streamer::send(	const void * const *buffs,
 
 	int16_t src = 0;
 	int16_t const *src_ptr = &src;
-	uint8_t *dst_ptr;
 	ptrdiff_t buf_step = iio_buffer_step(buf);
 
 	if (direct_copy && format == PLUTO_SDR_CS16) {
 		// optimize for single TX, 2 channel (I/Q), same endianess direct copy
-		dst_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
-
+		int16_t *dst_ptr = (int16_t *)iio_buffer_start(buf) + items_in_buf * 2;
 		memcpy(dst_ptr, buffs[0], 2 * sizeof(int16_t) * items);
 	}
 	else if (direct_copy && format == PLUTO_SDR_CS12) {
 
-		dst_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * 2 * sizeof(int16_t);
-		int8_t *samples_cs12 = (int8_t *)buffs[0];
+		int16_t *dst_ptr = (int16_t *)iio_buffer_start(buf) + items_in_buf * 2;
+		uint8_t const *samples_cs12 = (uint8_t *)buffs[0];
 
 		for (size_t index = 0; index < items; ++index) {
 			// consume 24 bit (iiqIQQ)
@@ -672,6 +670,19 @@ int tx_streamer::send(	const void * const *buffs,
 			dst_ptr++;
 		}
 	}
+	else if (direct_copy && format == PLUTO_SDR_CS8) {
+
+		int16_t *dst_ptr = (int16_t *)iio_buffer_start(buf) + items_in_buf * 2;
+		int8_t const *samples_cs8 = (int8_t *)buffs[0];
+
+		for (size_t index = 0; index < items * 2; ++index) {
+			// consume (2x) 8bit (IQ)
+			// produce (2x) 16 bit, note the output is MSB aligned, scale=32768
+			*dst_ptr = int16_t(*samples_cs8) << 8;
+			samples_cs8++;
+			dst_ptr++;
+		}
+	}
 	else if (format == PLUTO_SDR_CS12) {
 		SoapySDR_logf(SOAPY_SDR_ERROR, "CS12 not available with this endianess or channel layout");
 		throw std::runtime_error("CS12 not available with this endianess or channel layout");
@@ -682,7 +693,7 @@ int tx_streamer::send(	const void * const *buffs,
 		iio_channel *chn = channel_list[k];
 		unsigned int index = k / 2;
 
-		dst_ptr = (uint8_t *)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
+		uint8_t *dst_ptr = (uint8_t *)iio_buffer_first(buf, chn) + items_in_buf * buf_step;
 
 		// note that TX expects samples MSB aligned, unlike RX which is LSB aligned
 		if (format == PLUTO_SDR_CS16) {
