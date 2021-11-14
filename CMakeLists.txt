@@ -62,6 +62,21 @@ if (LibAD9361_FOUND)
     add_definitions(-DHAS_AD9361_IIO)
 endif()
 
+########################################################################
+# Find libusb
+########################################################################
+find_package(LibUSB)
+
+if(LibUSB_FOUND)
+    message(STATUS "LibUSB_INCLUDE_DIRS: ${LibUSB_INCLUDE_DIRS}")
+    message(STATUS "LibUSB_LIBRARIES: ${LibUSB_LIBRARIES}")
+    message(STATUS "LibUSB_DEFINITIONS: ${LibUSB_DEFINITIONS}")
+    include_directories(${LibUSB_INCLUDE_DIRS})
+    add_definitions(-DHAS_LIBUSB1)
+    #disable warnings for libusb.h
+    add_compile_options($<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-zero-length-array>)
+endif()
+
 
 SOAPY_SDR_MODULE_UTIL(
     TARGET PlutoSDRSupport
@@ -69,7 +84,7 @@ SOAPY_SDR_MODULE_UTIL(
     PlutoSDR_Registration.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
-    LIBRARIES ${LibIIO_LIBRARIES} ${LibAD9361_LIBRARIES}
+    LIBRARIES ${LibIIO_LIBRARIES} ${LibAD9361_LIBRARIES} ${LIBUSB_LIBRARIES}
 )
 
 ########################################################################
