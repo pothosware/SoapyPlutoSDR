@@ -1,5 +1,6 @@
 #include "SoapyPlutoSDR.hpp"
 #include <SoapySDR/Registry.hpp>
+#include <sstream>
 
 static std::vector<SoapySDR::Kwargs> results;
 static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args) {
@@ -32,8 +33,7 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			continue;
 		}
 
-		char label_str[100];
-		options["device"] = "plutosdr";
+		options["device"] = "PlutoSDR";
 		if (ret == 0) {
 			iio_context_info_list_free(info);
 			iio_scan_context_destroy(scan_ctx);
@@ -46,8 +46,10 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			if (ctx == nullptr) continue; //failed to connect
 			options["hostname"] = args.at("hostname");
 
-			sprintf(label_str, "%s #%d %s", options["device"].c_str(), 0, options["hostname"].c_str());
-			options["label"] = label_str;
+			std::ostringstream label_str;
+			label_str << options["device"] << " #0 " << options["hostname"];
+			options["label"] = label_str.str();
+
 			results.push_back(options);
 			if (ctx != nullptr) iio_context_destroy(ctx);
 
@@ -56,7 +58,11 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 				ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[i]));
 				if (ctx != nullptr) {
 					options["uri"] = std::string(iio_context_info_get_uri(info[i]));
-					sprintf(label_str, "%s #%d %s", options["device"].c_str(), i, options["uri"].c_str());
+
+					std::ostringstream label_str;
+					label_str << options["device"] << " #" << i << " " << options["uri"];
+					options["label"] = label_str.str();
+
 					results.push_back(options);
 					if (ctx != nullptr) iio_context_destroy(ctx);
 				}
