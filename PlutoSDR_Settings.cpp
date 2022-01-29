@@ -42,6 +42,7 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	}
 
 	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
+	this->setGainMode(SOAPY_SDR_RX, 0, false);
 	this->setAntenna(SOAPY_SDR_TX, 0, "A");
 }
 
