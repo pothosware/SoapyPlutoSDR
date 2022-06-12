@@ -41,9 +41,9 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 		throw std::runtime_error("no device found in this context");
 	}
 
-	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
-	this->setGainMode(SOAPY_SDR_RX, 0, false);
-	this->setAntenna(SOAPY_SDR_TX, 0, "A");
+	setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
+	setGainMode(SOAPY_SDR_RX, 0, false);
+	setAntenna(SOAPY_SDR_TX, 0, "A");
 }
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
@@ -52,12 +52,15 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 	if(decimation){
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
 		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false),"sampling_frequency", samplerate);
-
+//		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage1", false), "sampling_frequency", &samplerate);
+//		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage2", false), "sampling_frequency", samplerate);
 	}
 
 	if(interpolation){
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
+//		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage1", true), "sampling_frequency", &samplerate);
+//		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage2", true), "sampling_frequency", samplerate);
 	}
 
 	if(ctx)
@@ -67,6 +70,52 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 	}
 
 
+}
+
+struct iio_channel *SoapyPlutoSDR::find_ctrl_channel(const int direction, const size_t channel) const
+{
+	bool output = direction == SOAPY_SDR_TX;
+	char voltage_i[30];
+	snprintf(voltage_i, sizeof(voltage_i), "voltage%zu", channel);
+
+	struct iio_channel *chn = iio_device_find_channel(dev, voltage_i, output);
+
+	if (chn == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "control channel not found.");
+		throw std::runtime_error("control channel not found");
+	}
+
+	return chn;
+}
+
+struct iio_channel *SoapyPlutoSDR::find_rx_channel(const size_t channel) const
+{
+	char voltage_i[30];
+	snprintf(voltage_i, sizeof(voltage_i), "voltage%zu", channel * 2);
+
+	struct iio_channel *chn = iio_device_find_channel(rx_dev, voltage_i, false);
+
+	if (chn == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "rx channel not found.");
+		throw std::runtime_error("rx channel not found");
+	}
+
+	return chn;
+}
+
+struct iio_channel *SoapyPlutoSDR::find_tx_channel(const size_t channel) const
+{
+	char voltage[30];
+	snprintf(voltage, sizeof(voltage), "voltage%zu", channel * 2);
+
+	struct iio_channel *chn = iio_device_find_channel(tx_dev, voltage, true);
+
+	if (chn == nullptr) {
+		SoapySDR_logf(SOAPY_SDR_ERROR, "tx channel not found.");
+		throw std::runtime_error("tx channel not found");
+	}
+
+	return chn;
 }
 
 /*******************************************************************
@@ -106,17 +155,31 @@ SoapySDR::Kwargs SoapyPlutoSDR::getHardwareInfo( void ) const
 		info[key] = value;
 	}
 
+	auto rx_channels = getNumChannels(SOAPY_SDR_RX);
+	info["rx_channels"] = std::to_string(rx_channels);
+	auto tx_channels = getNumChannels(SOAPY_SDR_TX);
+	info["tx_channels"] = std::to_string(tx_channels);
+
 	return info;
 }
-
 
 /*******************************************************************
  * Channels API
  ******************************************************************/
 
-size_t SoapyPlutoSDR::getNumChannels( const int dir ) const
+size_t SoapyPlutoSDR::getNumChannels(const int direction) const
 {
-	return(1);
+	if (direction == SOAPY_SDR_RX) {
+		// 2 channels (I, Q) per RX
+		return iio_device_get_channels_count(rx_dev) / 2;
+	}
+
+	else if (direction == SOAPY_SDR_TX) {
+		// 6 channels (I, Q, I_F1, Q_F1, I_F2, Q_F2) per TX
+		return iio_device_get_channels_count(tx_dev) / 6;
+	}
+
+	return 0;
 }
 
 bool SoapyPlutoSDR::getFullDuplex( const int direction, const size_t channel ) const
@@ -327,8 +390,31 @@ std::string SoapyPlutoSDR::readSetting(const std::string &key) const
 std::vector<std::string> SoapyPlutoSDR::listAntennas( const int direction, const size_t channel ) const
 {
 	std::vector<std::string> options;
-	if(direction == SOAPY_SDR_RX) options.push_back( "A_BALANCED" );
-	if(direction == SOAPY_SDR_TX) options.push_back( "A" );
+
+	if (direction == SOAPY_SDR_RX) {
+		std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
+		char buf[1024];
+		if (iio_channel_attr_read(find_ctrl_channel(direction, channel), "rf_port_select_available", buf, sizeof(buf)) > 0) {
+			std::stringstream ss(buf);
+			std::string item;
+			while (std::getline(ss, item, ' ')) {
+				options.push_back(item);
+			}
+		}
+	}
+
+	else if (direction == SOAPY_SDR_TX) {
+		std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
+		char buf[1024];
+		if (iio_channel_attr_read(find_ctrl_channel(direction, channel), "rf_port_select_available", buf, sizeof(buf)) > 0) {
+			std::stringstream ss(buf);
+			std::string item;
+			while (std::getline(ss, item, ' ')) {
+				options.push_back(item);
+			}
+		}
+	}
+
 	return(options);
 }
 
@@ -336,12 +422,12 @@ void SoapyPlutoSDR::setAntenna( const int direction, const size_t channel, const
 {
    if (direction == SOAPY_SDR_RX) {
        std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
-		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "rf_port_select", name.c_str());
+		iio_channel_attr_write(find_ctrl_channel(SOAPY_SDR_RX, channel), "rf_port_select", name.c_str());
 	}
 
 	else if (direction == SOAPY_SDR_TX) {
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
-		iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", true), "rf_port_select", name.c_str());
+		iio_channel_attr_write(find_ctrl_channel(SOAPY_SDR_TX, channel), "rf_port_select", name.c_str());
 
 	} 
 }
@@ -352,12 +438,21 @@ std::string SoapyPlutoSDR::getAntenna( const int direction, const size_t channel
 	std::string options;
 
 	if (direction == SOAPY_SDR_RX) {
-		options = "A_BALANCED";
+		std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
+		char buf[1024];
+		if (iio_channel_attr_read(find_ctrl_channel(SOAPY_SDR_RX, channel), "rf_port_select", buf, sizeof(buf)) > 0) {
+			options = buf;
+		}
 	}
-	else if (direction == SOAPY_SDR_TX) {
 
-		options = "A";
+	else if (direction == SOAPY_SDR_TX) {
+		std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
+		char buf[1024];
+		if (iio_channel_attr_read(find_ctrl_channel(SOAPY_SDR_TX, channel), "rf_port_select", buf, sizeof(buf)) > 0) {
+			options = buf;
+		}
 	}
+
 	return options;
 }
 
@@ -396,11 +491,11 @@ void SoapyPlutoSDR::setGainMode( const int direction, const size_t channel, cons
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 		if (gainMode) {
 
-			iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "gain_control_mode", "slow_attack");
+			iio_channel_attr_write(find_ctrl_channel(SOAPY_SDR_RX, channel), "gain_control_mode", "slow_attack");
 
 		}else{
 
-			iio_channel_attr_write(iio_device_find_channel(dev, "voltage0", false), "gain_control_mode", "manual");
+			iio_channel_attr_write(find_ctrl_channel(SOAPY_SDR_RX, channel), "gain_control_mode", "manual");
 		}
 
 	}
@@ -416,14 +511,14 @@ void SoapyPlutoSDR::setGain( const int direction, const size_t channel, const do
 	long long gain = (long long) value;
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"hardwaregain", gain);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_RX, channel), "hardwaregain", gain);
 
 	}
 
 	else if(direction==SOAPY_SDR_TX){
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 		gain = gain - 89;
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain", gain);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_TX, channel), "hardwaregain", gain);
 
 	}
 
@@ -442,7 +537,7 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"hardwaregain",&gain )!=0)
+		if(iio_channel_attr_read_longlong(find_ctrl_channel(SOAPY_SDR_RX, channel), "hardwaregain",&gain )!=0)
 			return 0;
 
 	}
@@ -451,7 +546,7 @@ double SoapyPlutoSDR::getGain( const int direction, const size_t channel, const 
 
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"hardwaregain",&gain )!=0)
+		if(iio_channel_attr_read_longlong(find_ctrl_channel(SOAPY_SDR_TX, channel), "hardwaregain",&gain )!=0)
 			return 0;
 		gain = gain + 89;
 	}
@@ -564,9 +659,9 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 			samplerate = samplerate * 8;
 		}
 
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency", samplerate);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_RX, channel), "sampling_frequency", samplerate);
 
-		iio_channel_attr_write_longlong(iio_device_find_channel(rx_dev, "voltage0", false), "sampling_frequency", decimation?samplerate/8:samplerate);
+		iio_channel_attr_write_longlong(find_rx_channel(channel), "sampling_frequency", decimation?samplerate/8:samplerate);
 
 		if(rx_stream)
 			rx_stream->set_buffer_size_by_samplerate(decimation ? samplerate / 8 : samplerate);
@@ -588,8 +683,8 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 		}
 
 
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency", samplerate);
-		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true), "sampling_frequency", interpolation?samplerate / 8:samplerate);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_TX, channel), "sampling_frequency", samplerate);
+		iio_channel_attr_write_longlong(find_tx_channel(channel), "sampling_frequency", interpolation?samplerate / 8:samplerate);
 
 	}
 
@@ -608,7 +703,7 @@ double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel )
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(rx_dev, "voltage0", false),"sampling_frequency",&samplerate )!=0)
+		if(iio_channel_attr_read_longlong(find_rx_channel(channel), "sampling_frequency",&samplerate )!=0)
 			return 0;
 	}
 
@@ -616,7 +711,7 @@ double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel )
         
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency",&samplerate)!=0)
+		if(iio_channel_attr_read_longlong(find_tx_channel(channel), "sampling_frequency",&samplerate)!=0)
 			return 0;
 
 	}
@@ -667,12 +762,12 @@ void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, con
 	long long bandwidth = (long long) bw;
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", false),"rf_bandwidth", bandwidth);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_RX, channel), "rf_bandwidth", bandwidth);
 	}
 
 	else if(direction==SOAPY_SDR_TX){
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"rf_bandwidth", bandwidth);
+		iio_channel_attr_write_longlong(find_ctrl_channel(SOAPY_SDR_TX, channel), "rf_bandwidth", bandwidth);
 	}
 
 }
@@ -684,7 +779,7 @@ double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) 
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"rf_bandwidth",&bandwidth )!=0)
+		if(iio_channel_attr_read_longlong(find_ctrl_channel(SOAPY_SDR_RX, channel), "rf_bandwidth",&bandwidth )!=0)
 			return 0;
 
 	}
@@ -692,7 +787,7 @@ double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) 
 	else if(direction==SOAPY_SDR_TX){
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
 
-		if(iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"rf_bandwidth",&bandwidth )!=0)
+		if(iio_channel_attr_read_longlong(find_ctrl_channel(SOAPY_SDR_TX, channel), "rf_bandwidth",&bandwidth )!=0)
 			return 0;
 	}
 

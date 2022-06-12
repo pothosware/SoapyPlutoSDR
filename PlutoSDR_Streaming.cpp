@@ -310,15 +310,33 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		SoapySDR_logf(SOAPY_SDR_ERROR, "cf-ad9361-lpc not found!");
 		throw std::runtime_error("cf-ad9361-lpc not found!");
 	}
-	unsigned int nb_channels = iio_device_get_channels_count(dev), i;
-	for (i = 0; i < nb_channels; i++)
+	unsigned int nb_channels = iio_device_get_channels_count(dev);
+	for (unsigned int i = 0; i < nb_channels; i++) {
 		iio_channel_disable(iio_device_get_channel(dev, i));
+	}
 
 	//default to channel 0, if none were specified
 	const std::vector<size_t> &channelIDs = channels.empty() ? std::vector<size_t>{0} : channels;
 
-	for (i = 0; i < channelIDs.size() * 2; i++) {
-		struct iio_channel *chn = iio_device_get_channel(dev, i);
+	for (auto i : channelIDs) {
+		if (i * 2 >= nb_channels) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "invalid channel number!");
+			throw std::runtime_error("invalid channel number!");
+		}
+
+		struct iio_channel *chn = iio_device_get_channel(dev, i * 2 + 0);
+		if (chn == nullptr) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "channel not found!");
+			throw std::runtime_error("channel not found!");
+		}
+		iio_channel_enable(chn);
+		channel_list.push_back(chn);
+
+		chn = iio_device_get_channel(dev, i * 2 + 1);
+		if (chn == nullptr) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "channel not found!");
+			throw std::runtime_error("channel not found!");
+		}
 		iio_channel_enable(chn);
 		channel_list.push_back(chn);
 	}
@@ -337,7 +355,7 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 
 		long long samplerate;
 
-		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
+		iio_channel_attr_read_longlong(channel_list[0], "sampling_frequency", &samplerate);
 
 		this->set_buffer_size_by_samplerate(samplerate);
 
@@ -351,12 +369,9 @@ rx_streamer::~rx_streamer()
         iio_buffer_destroy(buf);
     }
 
-    for (unsigned int i = 0; i < channel_list.size(); ++i) {
-        iio_channel_disable(channel_list[i]);
+    for (auto chn : channel_list) {
+	    iio_channel_disable(chn);
     }
-
-
-
 }
 
 size_t rx_streamer::recv(void * const *buffs,
@@ -593,15 +608,33 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		throw std::runtime_error("cf-ad9361-dds-core-lpc not found!");
 	}
 
-	unsigned int nb_channels = iio_device_get_channels_count(dev), i;
-	for (i = 0; i < nb_channels; i++)
+	unsigned int nb_channels = iio_device_get_channels_count(dev);
+	for (unsigned int i = 0; i < nb_channels; i++) {
 		iio_channel_disable(iio_device_get_channel(dev, i));
+	}
 
 	//default to channel 0, if none were specified
 	const std::vector<size_t> &channelIDs = channels.empty() ? std::vector<size_t>{0} : channels;
 
-	for (i = 0; i < channelIDs.size() * 2; i++) {
-		iio_channel *chn = iio_device_get_channel(dev, i);
+	for (auto i : channelIDs) {
+		if (i * 2 >= nb_channels) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "invalid channel number!");
+			throw std::runtime_error("invalid channel number!");
+		}
+
+		struct iio_channel *chn = iio_device_get_channel(dev, i * 2 + 0);
+		if (chn == nullptr) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "channel not found!");
+			throw std::runtime_error("channel not found!");
+		}
+		iio_channel_enable(chn);
+		channel_list.push_back(chn);
+
+		chn = iio_device_get_channel(dev, i * 2 + 1);
+		if (chn == nullptr) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "channel not found!");
+			throw std::runtime_error("channel not found!");
+		}
 		iio_channel_enable(chn);
 		channel_list.push_back(chn);
 	}
@@ -624,9 +657,9 @@ tx_streamer::~tx_streamer(){
 
 	if (buf) { iio_buffer_destroy(buf); }
 
-	for(unsigned int i=0;i<channel_list.size(); ++i)
-		iio_channel_disable(channel_list[i]);
-
+	for (auto chn : channel_list) {
+		iio_channel_disable(chn);
+	}
 }
 
 int tx_streamer::send(	const void * const *buffs,
