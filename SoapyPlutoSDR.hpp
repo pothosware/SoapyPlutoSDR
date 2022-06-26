@@ -312,7 +312,7 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		iio_device *dev;
 		iio_device *rx_dev;
 		iio_device *tx_dev;
-		bool gainMode;
+        bool gainMode;
         float frequencyOffset;
 
 		mutable pluto_spin_mutex rx_device_mutex;

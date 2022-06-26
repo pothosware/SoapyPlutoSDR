@@ -13,7 +13,6 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 	iio_scan_context *scan_ctx;
 	iio_context_info **info;
 	SoapySDR::Kwargs options;
-    
 	// Backends can error, scan each one individually
 	std::vector<std::string> backends = {"local", "usb", "ip"};
 	for (std::vector<std::string>::iterator it = backends.begin(); it != backends.end(); it++) {
