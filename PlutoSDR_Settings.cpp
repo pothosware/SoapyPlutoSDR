@@ -10,9 +10,16 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 {
 
 	gainMode = false;
+    frequencyOffset = 0;
 
 	if (args.count("label") != 0)
 		SoapySDR_logf( SOAPY_SDR_INFO, "Opening %s...", args.at("label").c_str());
+
+	if (args.count("frequency_offset") != 0)
+    {
+		SoapySDR_logf( SOAPY_SDR_INFO, "Frequency offset %s Hz", args.at("frequency_offset").c_str());
+        frequencyOffset = std::stof(args.at("frequency_offset"));
+    }
 
 	if(ctx == nullptr)
 	{
@@ -476,12 +483,12 @@ void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, con
 	if(direction==SOAPY_SDR_RX){
 
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage0", true),"frequency", freq);
+		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage0", true),"frequency", freq - frequencyOffset);
 	}
 
 	else if(direction==SOAPY_SDR_TX){
         std::lock_guard<pluto_spin_mutex> lock(tx_device_mutex);
-		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage1", true),"frequency", freq);
+		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "altvoltage1", true),"frequency", freq - frequencyOffset);
 
 	}
 
