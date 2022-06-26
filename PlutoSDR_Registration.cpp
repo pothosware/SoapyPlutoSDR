@@ -33,8 +33,8 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 		}
 
 		options["device"] = "PlutoSDR";
-        if (args.count("frequency_offset") != 0)
-            options["frequency_offset"] = args.at("frequency_offset");
+        if (args.count("freq_offset") != 0)
+            options["freq_offset"] = args.at("freq_offset");
             
 		if (ret == 0) {
 			iio_context_info_list_free(info);
