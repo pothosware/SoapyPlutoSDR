@@ -1,10 +1,11 @@
 # - Try to find libad9361-iio
 # Once done this will define
 #
-#  LibAD9361_FOUND - system has libiio
-#  LibAD9361_INCLUDE_DIRS - the libiio include directory
-#  LibAD9361_LIBRARIES - Link these to use libiio
-#  LibAD9361_DEFINITIONS - Compiler switches required for using libiio
+#  LibAD9361_FOUND - system has libad9361
+#  LibAD9361_INCLUDE_DIRS - the libad9361 include directory
+#  LibAD9361_LIBRARIES - Link these to use libad9361
+#  LibAD9361_DEFINITIONS - Compiler switches required for using libad9361
+#  LibAD9361_VERSION - the libad9361 version
 #
 # Redistribution and use is allowed according to the terms of the New BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.

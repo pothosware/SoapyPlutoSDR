@@ -5,6 +5,7 @@
 #  LibIIO_INCLUDE_DIRS - the libiio include directory
 #  LibIIO_LIBRARIES - Link these to use libiio
 #  LibIIO_DEFINITIONS - Compiler switches required for using libiio
+#  LibIIO_VERSION - the libiio version
 #
 # Redistribution and use is allowed according to the terms of the New BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.

@@ -42,6 +42,7 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	}
 
 	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
+	this->setGainMode(SOAPY_SDR_RX, 0, false);
 	this->setAntenna(SOAPY_SDR_TX, 0, "A");
 }
 
@@ -488,7 +489,7 @@ void SoapyPlutoSDR::setFrequency( const int direction, const size_t channel, con
 
 double SoapyPlutoSDR::getFrequency( const int direction, const size_t channel, const std::string &name ) const
 {
-  	long long freq;
+  	long long freq = 0;
 
 	if(direction==SOAPY_SDR_RX){
 
@@ -601,7 +602,7 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 double SoapyPlutoSDR::getSampleRate( const int direction, const size_t channel ) const
 {
-	long long samplerate;
+	long long samplerate = 0;
 
 	if(direction==SOAPY_SDR_RX){
 
@@ -643,6 +644,24 @@ std::vector<double> SoapyPlutoSDR::listSampleRates( const int direction, const s
 
 }
 
+SoapySDR::RangeList SoapyPlutoSDR::getSampleRateRange( const int direction, const size_t channel ) const
+{
+	SoapySDR::RangeList results;
+
+	// note that there are some gaps and rounding errors since we get truncated values form IIO
+	// e.g. 25e6/12 = 2083333.333 is read as 2083333 but written as 2083334
+#ifdef HAS_AD9361_IIO
+	// assume ad9361_set_bb_rate(), if available, will load x4 FIR as needed
+	// below 25e6/96 needs x8 decimation/interpolation and x4 FIR, minimum is 25e6/384
+	results.push_back(SoapySDR::Range(25e6 / 384, 61440000));
+#else
+	// sample rates below 25e6/12 need x8 decimation/interpolation (or x4 FIR to 25e6/48)
+	results.push_back(SoapySDR::Range(25e6 / 96, 61440000));
+#endif
+
+	return results;
+}
+
 void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, const double bw )
 {
 	long long bandwidth = (long long) bw;
@@ -660,7 +679,7 @@ void SoapyPlutoSDR::setBandwidth( const int direction, const size_t channel, con
 
 double SoapyPlutoSDR::getBandwidth( const int direction, const size_t channel ) const
 {
-    long long bandwidth;
+    long long bandwidth = 0;
 
 	if(direction==SOAPY_SDR_RX){
         std::lock_guard<pluto_spin_mutex> lock(rx_device_mutex);
