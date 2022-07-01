@@ -117,11 +117,23 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 				if (ctx != nullptr) {
 					options["uri"] = std::string(iio_context_info_get_uri(info[i]));
 
-					std::ostringstream label_str;
-					label_str << options["device"] << " #" << i << " " << options["uri"];
-					options["label"] = label_str.str();
+					// check if discovered libiio context can be a PlutoSDR (and not some other sensor),
+          // it must contain "ad9361-phy", "cf-ad9361-lpc" and "cf-ad9361-dds-core-lpc" devices
+					iio_device *dev = iio_context_find_device(ctx, "ad9361-phy");
+					iio_device *rx_dev = iio_context_find_device(ctx, "cf-ad9361-lpc");
+					iio_device *tx_dev = iio_context_find_device(ctx, "cf-ad9361-dds-core-lpc");
 
-					results.push_back(options);
+					if (dev != nullptr && rx_dev != nullptr && tx_dev != nullptr) {
+						// if uri is specified in kwargs, discovered uri must match
+						if (args.count("uri") == 0 || options["uri"] == args.at("uri")) {
+							std::ostringstream label_str;
+							label_str << options["device"] << " #" << i << " " << options["uri"];
+							options["label"] = label_str.str();
+
+							results.push_back(options);
+						}
+					}
+
 					if (ctx != nullptr) iio_context_destroy(ctx);
 				}
 
