@@ -73,8 +73,6 @@ if(LibUSB_FOUND)
     message(STATUS "LibUSB_DEFINITIONS: ${LibUSB_DEFINITIONS}")
     include_directories(${LibUSB_INCLUDE_DIRS})
     add_definitions(-DHAS_LIBUSB1)
-    #disable warnings for libusb.h
-    add_compile_options($<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-zero-length-array>)
 endif()
 
 
