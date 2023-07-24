@@ -447,15 +447,14 @@ size_t rx_streamer::recv(void * const *buffs,
 			unsigned int index = i / 2;
 
 			uint8_t *src = (uint8_t *)iio_buffer_first(buf, chn) + byte_offset;
-			int16_t const *src_ptr = (int16_t *)src;
 
 			if (format == PLUTO_SDR_CS16) {
 
 				int16_t *dst_cs16 = (int16_t *)buffs[index];
 
 				for (size_t j = 0; j < items; ++j) {
-					iio_channel_convert(chn, conv_ptr, src_ptr);
-					src_ptr += buf_step;
+					iio_channel_convert(chn, conv_ptr, src);
+					src += buf_step;
 					dst_cs16[j * 2 + i] = conv;
 				}
 			}
@@ -464,8 +463,8 @@ size_t rx_streamer::recv(void * const *buffs,
 				float *dst_cf32 = (float *)buffs[index];
 
 				for (size_t j = 0; j < items; ++j) {
-					iio_channel_convert(chn, conv_ptr, src_ptr);
-					src_ptr += buf_step;
+					iio_channel_convert(chn, conv_ptr, src);
+					src += buf_step;
 					dst_cf32[j * 2 + i] = float(conv) / 2048.0f;
 				}
 			}
@@ -474,8 +473,8 @@ size_t rx_streamer::recv(void * const *buffs,
 				int8_t *dst_cs8 = (int8_t *)buffs[index];
 
 				for (size_t j = 0; j < items; ++j) {
-					iio_channel_convert(chn, conv_ptr, src_ptr);
-					src_ptr += buf_step;
+					iio_channel_convert(chn, conv_ptr, src);
+					src += buf_step;
 					dst_cs8[j * 2 + i] = int8_t(conv >> 4);
 				}
 			}
@@ -645,7 +644,7 @@ int tx_streamer::send(	const void * const *buffs,
 
 	int16_t src = 0;
 	int16_t const *src_ptr = &src;
-	ptrdiff_t buf_step = iio_buffer_step(buf);
+	ptrdiff_t buf_step = iio_buffer_step(buf); //in bytes
 
 	if (direct_copy && format == PLUTO_SDR_CS16) {
 		// optimize for single TX, 2 channel (I/Q), same endianess direct copy
