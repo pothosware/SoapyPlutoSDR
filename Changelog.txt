@@ -1,3 +1,16 @@
+Release 0.2.2 (pending)
+==========================
+
+- Fix src increment for rx_streamer recv on non direct-copy
+- Add uri key to match devices, ensure that libiio context is a PlutoSDR
+- Add libusb check for known ADALM-Pluto VID:PID
+- Set label when PlutoSDR is USB-connected
+- Disable automatic gain by default
+- Add CS8 TX direct copy, fix CS12 TX direct copy
+- Fix for backend scan errors
+- Fix undefined default warnings
+- Add getSampleRateRange() API
+
 Release 0.2.1 (2021-01-23)
 ==========================
 
