@@ -1,4 +1,4 @@
-Release 0.2.2 (pending)
+Release 0.2.2 (2024-02-18)
 ==========================
 
 - Fix src increment for rx_streamer recv on non direct-copy

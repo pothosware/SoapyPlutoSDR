@@ -1,3 +1,9 @@
+soapyplutosdr (0.2.2-1) unstable; urgency=low
+
+  * Release 0.2.2 (2024-02-18)
+
+ -- Josh Blum <josh@pothosware.com>  Sun, 18 Feb 2024 11:31:29 -0000
+
 soapyplutosdr (0.2.1-1) unstable; urgency=low
 
   * Release 0.2.1 (2021-01-23)
