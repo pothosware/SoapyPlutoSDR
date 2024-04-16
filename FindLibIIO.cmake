@@ -25,7 +25,9 @@ find_library(LibIIO_LIBRARY NAMES iio libiio
 set(LibIIO_VERSION ${PC_LibIIO_VERSION})
 
 include(FindPackageHandleStandardArgs)
+# Note that `FOUND_VAR LibIIO_FOUND` is needed for cmake 3.2 and older.
 find_package_handle_standard_args(LibIIO
+                                  FOUND_VAR LibIIO_FOUND
                                   REQUIRED_VARS LibIIO_LIBRARY LibIIO_INCLUDE_DIR
                                   VERSION_VAR LibIIO_VERSION)
 
