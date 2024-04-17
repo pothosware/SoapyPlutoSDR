@@ -15,12 +15,31 @@ find_package(PkgConfig)
 pkg_check_modules(PC_LibAD9361 QUIET libad9361)
 set(LibAD9361_DEFINITIONS ${PC_LibAD9361_CFLAGS_OTHER})
 
+# $ENV{HOMEBREW_PREFIX} can be /opt/homebrew (arm64) or defaults to /usr/local
+set(HOMEBREW_PREFIX $ENV{HOMEBREW_PREFIX})
+if(NOT HOMEBREW_PREFIX)
+    set(HOMEBREW_PREFIX "/usr/local")
+endif()
+
+# Note: a 0.2 version might be named 0.3 and a 0.1 might be missing the version
 find_path(LibAD9361_INCLUDE_DIR ad9361.h
           HINTS ${PC_LibAD9361_INCLUDEDIR} ${PC_LibAD9361_INCLUDE_DIRS}
+          PATHS
+          /opt/local/Library/Frameworks
+          ${HOMEBREW_PREFIX}/Cellar/libad9361-iio/${PC_LibIIO_VERSION}/Frameworks
+          ${HOMEBREW_PREFIX}/Cellar/libad9361-iio/0.3/Frameworks
+          ${HOMEBREW_PREFIX}/Cellar/libad9361/${PC_LibIIO_VERSION}
+          ${HOMEBREW_PREFIX}/Cellar/libad9361/0.1
           PATH_SUFFIXES libad9361-iio)
 
 find_library(LibAD9361_LIBRARY NAMES ad9361 libad9361
-             HINTS ${PC_LibAD9361_LIBDIR} ${PC_LibAD9361_LIBRARY_DIRS})
+             HINTS ${PC_LibAD9361_LIBDIR} ${PC_LibAD9361_LIBRARY_DIRS}
+             PATHS
+             /opt/local/Library/Frameworks
+             ${HOMEBREW_PREFIX}/Cellar/libad9361-iio/${PC_LibIIO_VERSION}/Frameworks
+             ${HOMEBREW_PREFIX}/Cellar/libad9361-iio/0.3/Frameworks
+             ${HOMEBREW_PREFIX}/Cellar/libad9361/${PC_LibIIO_VERSION}
+             ${HOMEBREW_PREFIX}/Cellar/libad9361/0.1)
 
 set(LibAD9361_VERSION ${PC_LibAD9361_VERSION})
 
