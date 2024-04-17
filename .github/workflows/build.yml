@@ -17,7 +17,7 @@ jobs:
       - uses: melusina-org/setup-macports@v1
       - name: Install ports
         run: |
-          sudo port install soapysdr libusb libiio libad9361-iio
+          sudo port install SoapySDR libusb libiio libad9361-iio
       - name: Configure
         run: cmake -B build
       - name: Build
