@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-12, macos-14]
+        os: [macos-13, macos-14, macos-15]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (macports)
     steps:
@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-12, macos-14]
+        os: [macos-13, macos-14, macos-15]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (tfcollins)
     steps:
@@ -36,6 +36,8 @@ jobs:
         run: |
           brew tap tfcollins/homebrew-formulae
           brew update
+          brew install --force python@3.13 || :
+          brew link --overwrite python@3.13 || :
           brew install soapysdr libusb libiio libad9361-iio
       - name: Configure
         run: cmake -B build
@@ -46,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-12, macos-14]
+        os: [macos-13, macos-14, macos-15]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (pothos)
     steps:
@@ -57,6 +59,8 @@ jobs:
         run: |
           brew tap pothosware/homebrew-pothos
           brew update
+          brew install --force python@3.13 || :
+          brew link --overwrite python@3.13 || :
           pip3 install --break-system-packages setuptools
           brew install soapysdr libusb libiio libad9361
       - name: Configure
