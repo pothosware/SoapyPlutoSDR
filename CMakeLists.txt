@@ -26,6 +26,7 @@ if (LibIIO_FOUND)
     message(STATUS "LibIIO_INCLUDE_DIRS: ${LibIIO_INCLUDE_DIRS}")
     message(STATUS "LibIIO_LIBRARIES: ${LibIIO_LIBRARIES}")
     message(STATUS "LibIIO_DEFINITIONS: ${LibIIO_DEFINITIONS}")
+    list(APPEND PLUTOSDR_LIBS ${LibIIO_LIBRARIES})
 endif()
 
 include_directories(${LibIIO_INCLUDE_DIRS})
@@ -58,6 +59,7 @@ if (LibAD9361_FOUND)
     message(STATUS "LibAD9361_INCLUDE_DIRS: ${LibAD9361_INCLUDE_DIRS}")
     message(STATUS "LibAD9361_LIBRARIES: ${LibAD9361_LIBRARIES}")
     message(STATUS "LibAD9361_DEFINITIONS: ${LibAD9361_DEFINITIONS}")
+    list(APPEND PLUTOSDR_LIBS ${LibAD9361_LIBRARIES})
     include_directories(${LibAD9361_INCLUDE_DIRS})
     add_definitions(-DHAS_AD9361_IIO)
 endif()
@@ -71,6 +73,7 @@ if(LibUSB_FOUND)
     message(STATUS "LibUSB_INCLUDE_DIRS: ${LibUSB_INCLUDE_DIRS}")
     message(STATUS "LibUSB_LIBRARIES: ${LibUSB_LIBRARIES}")
     message(STATUS "LibUSB_DEFINITIONS: ${LibUSB_DEFINITIONS}")
+    list(APPEND PLUTOSDR_LIBS ${LibUSB_LIBRARIES})
     include_directories(${LibUSB_INCLUDE_DIRS})
     add_definitions(-DHAS_LIBUSB1)
     #disable warnings for libusb.h
@@ -84,7 +87,7 @@ SOAPY_SDR_MODULE_UTIL(
     PlutoSDR_Registration.cpp
     PlutoSDR_Settings.cpp
     PlutoSDR_Streaming.cpp
-    LIBRARIES ${LibIIO_LIBRARIES} ${LibAD9361_LIBRARIES} ${LibUSB_LIBRARIES}
+    LIBRARIES ${PLUTOSDR_LIBS}
 )
 
 ########################################################################
