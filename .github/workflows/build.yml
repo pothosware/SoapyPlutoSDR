@@ -9,7 +9,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14, macos-15]
+        # https://github.com/melusina-org/setup-macports/issues/2
+        os: [macos-13, macos-14]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (macports)
     steps:
@@ -33,6 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup tools
+        # Note: force a Python Brew install as it is a dep of soapysdr
         run: |
           brew tap tfcollins/homebrew-formulae
           brew update
@@ -54,6 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup tools
+        # Note: force a Python Brew install as it is a dep of soapysdr
         # Note: "distutils" package is removed in python version 3.12
         # pothosware libiio homebrew formula will fail without "setuptools"
         run: |
