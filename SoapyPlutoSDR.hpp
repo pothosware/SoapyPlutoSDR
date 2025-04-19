@@ -209,6 +209,15 @@ class SoapyPlutoSDR : public SoapySDR::Device{
 		std::string readSetting(const std::string &key) const;
 
 
+		SoapySDR::ArgInfoList getSettingInfo(const int direction, const size_t channel) const;
+
+
+		void writeSetting(const int direction, const size_t channel, const std::string &key, const std::string &value);
+
+
+		std::string readSetting(const int direction, const size_t channel, const std::string &key) const;
+
+
 		/*******************************************************************
 		 * Antenna API
 		 ******************************************************************/
