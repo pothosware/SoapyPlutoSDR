@@ -590,6 +590,8 @@ void SoapyPlutoSDR::setSampleRate( const int direction, const size_t channel, co
 
 		iio_channel_attr_write_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency", samplerate);
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true), "sampling_frequency", interpolation?samplerate / 8:samplerate);
+		if(tx_stream)
+			tx_stream->set_buffer_size_by_samplerate(interpolation ? samplerate / 8 : samplerate);
 
 	}
 

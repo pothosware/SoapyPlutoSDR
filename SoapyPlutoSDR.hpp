@@ -63,8 +63,12 @@ class tx_streamer {
 		~tx_streamer();
 		int send(const void * const *buffs,const size_t numElems,int &flags,const long long timeNs,const long timeoutUs );
 		int flush();
+		void set_buffer_size_by_samplerate(const size_t _samplerate);
+		size_t get_mtu_size();
 
 	private:
+		void set_buffer_size(const size_t _buffer_size);
+		void set_mtu_size(const size_t mtu_size);
 		int send_buf();
 		bool has_direct_copy();
 
@@ -73,9 +77,10 @@ class tx_streamer {
 		const plutosdrStreamFormat format;
 		
 		iio_buffer  *buf;
-		size_t buf_size;
 		size_t items_in_buf;
 		bool direct_copy;
+		size_t buffer_size;
+		size_t mtu_size;
 
 };
 

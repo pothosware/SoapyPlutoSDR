@@ -173,7 +173,7 @@ size_t SoapyPlutoSDR::getStreamMTU( SoapySDR::Stream *handle) const
     }
 
 	if (IsValidTxStreamHandle(handle)) {
-		return 4096;
+		return this->tx_stream->get_mtu_size();
 	}
 
     return 0;
@@ -605,14 +605,11 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		iio_channel_enable(chn);
 		channel_list.push_back(chn);
 	}
+	long long samplerate;
 
-	buf_size = 4096;
-	items_in_buf = 0;
-	buf = iio_device_create_buffer(dev, buf_size, false);
-	if (!buf) {
-		SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create buffer!");
-		throw std::runtime_error("Unable to create buffer!");
-	}
+	iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
+
+	this->set_buffer_size_by_samplerate(samplerate);
 
 	direct_copy = has_direct_copy();
 
@@ -629,6 +626,66 @@ tx_streamer::~tx_streamer(){
 
 }
 
+void tx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
+
+    // The original buffer size of 4096 is not enough for a full duplex stream at sample rates above 1 Msps
+	// Avoid samples getting dropped in the TX stream by setting a high enough buffer size.
+    // Apply the same logic as for the rx_streamer buffer. Keep it a power of 2 which seems to be better.
+    int rounded_nb_samples_per_call = (int)::round(samplerate / 60.0);
+
+    int power_of_2_nb_samples = 0;
+
+    while (rounded_nb_samples_per_call > (1 << power_of_2_nb_samples)) {
+        power_of_2_nb_samples++;
+    }
+
+    this->set_buffer_size(1 << power_of_2_nb_samples);
+
+	SoapySDR_logf(SOAPY_SDR_INFO, "Auto setting TX Buffer Size: %lu", (unsigned long)buffer_size);
+
+    //Recompute transmit MTU from buffer size change.
+    //We always set MTU size = Buffer Size.
+    //On buffer size adjustment to sample rate,
+    //MTU can be changed accordingly safely here.
+    set_mtu_size(this->buffer_size);
+}
+
+void tx_streamer::set_mtu_size(const size_t mtu_size) {
+
+    this->mtu_size = mtu_size;
+
+    SoapySDR_logf(SOAPY_SDR_INFO, "Set TX MTU Size: %lu", (unsigned long)mtu_size);
+}
+
+void tx_streamer::set_buffer_size(const size_t _buffer_size){
+
+	if (!buf || this->buffer_size != _buffer_size) {
+        //cancel first
+        if (buf) {
+            iio_buffer_cancel(buf);
+        }
+        //then destroy
+        if (buf) {
+            iio_buffer_destroy(buf);
+        }
+
+		items_in_buf = 0;
+
+		buf = iio_device_create_buffer(dev, _buffer_size, false);
+		if (!buf) {
+			SoapySDR_logf(SOAPY_SDR_ERROR, "Unable to create TX buffer!");
+			throw std::runtime_error("Unable to create TX buffer!\n");
+		}
+
+	}
+
+	this->buffer_size=_buffer_size;
+}
+
+size_t tx_streamer::get_mtu_size() {
+    return this->mtu_size;
+}
+
 int tx_streamer::send(	const void * const *buffs,
 		const size_t numElems,
 		int &flags,
@@ -640,7 +697,7 @@ int tx_streamer::send(	const void * const *buffs,
         return 0;
     }
 
-	size_t items = std::min(buf_size - items_in_buf, numElems);
+	size_t items = std::min(this->buffer_size - items_in_buf, numElems);
 
 	int16_t src = 0;
 	int16_t const *src_ptr = &src;
@@ -729,14 +786,14 @@ int tx_streamer::send(	const void * const *buffs,
 
 	items_in_buf += items;
 
-	if (items_in_buf == buf_size || (flags & SOAPY_SDR_END_BURST && numElems == items)) {
+	if (items_in_buf == this->buffer_size || (flags & SOAPY_SDR_END_BURST && numElems == items)) {
 		int ret = send_buf();
 
 		if (ret < 0) {
 			return SOAPY_SDR_ERROR;
 		}
 
-		if ((size_t)ret != buf_size) {
+		if ((size_t)ret != this->buffer_size) {
 			return SOAPY_SDR_ERROR;
 		}
 	}
@@ -757,7 +814,7 @@ int tx_streamer::send_buf()
     }
 
 	if (items_in_buf > 0) {
-		if (items_in_buf < buf_size) {
+		if (items_in_buf < this->buffer_size) {
 			ptrdiff_t buf_step = iio_buffer_step(buf);
 			uint8_t *buf_ptr = (uint8_t *)iio_buffer_start(buf) + items_in_buf * buf_step;
 			uint8_t *buf_end = (uint8_t *)iio_buffer_end(buf);
