@@ -323,13 +323,14 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		channel_list.push_back(chn);
 	}
 
-	if ( args.count( "bufflen" ) != 0 ){
-
+	if ( args.count( "bufflen" ) != 0 ) {
 		try
 		{
 			size_t bufferLength = std::stoi(args.at("bufflen"));
-			if (bufferLength > 0)
+			if (bufferLength > 0) {
 				this->set_buffer_size(bufferLength);
+				this->set_mtu_size(this->buffer_size);
+			}
 		}
 		catch (const std::invalid_argument &){}
 
@@ -605,11 +606,25 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 		iio_channel_enable(chn);
 		channel_list.push_back(chn);
 	}
-	long long samplerate;
 
-	iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
+	if ( args.count( "bufflen" ) != 0 ) {
+		try
+		{
+			size_t bufferLength = std::stoi(args.at("bufflen"));
+			if (bufferLength > 0) {
+				this->set_buffer_size(bufferLength);
+				this->set_mtu_size(this->buffer_size);
+			}
+		}
+		catch (const std::invalid_argument &){}
 
-	this->set_buffer_size_by_samplerate(samplerate);
+	} else {
+		long long samplerate;
+
+		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
+
+		this->set_buffer_size_by_samplerate(samplerate);
+	}
 
 	direct_copy = has_direct_copy();
 
