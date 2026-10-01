@@ -48,6 +48,14 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
+    // Close any remaining streams while the IIO context is still valid.
+    if (this->rx_stream) {
+        this->closeStream(reinterpret_cast<SoapySDR::Stream *>(this->rx_stream.get()));
+    }
+    if (this->tx_stream) {
+        this->closeStream(reinterpret_cast<SoapySDR::Stream *>(this->tx_stream.get()));
+    }
+
 	long long samplerate=0;
 	if(decimation){
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", false),"sampling_frequency",&samplerate);
