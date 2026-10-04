@@ -12,7 +12,6 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
     std::vector<SoapySDR::Kwargs> results;
 
 	ssize_t ret = 0;
-	iio_context *ctx = nullptr;
 	iio_scan_context *scan_ctx;
 	iio_context_info **info;
 	SoapySDR::Kwargs options;
@@ -82,8 +81,14 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 
 		info = nullptr;
 		ret = iio_scan_context_get_info_list(scan_ctx, &info);
+		if (ret == -19) {
+			// ignore error -19 "Backend unavailable", e.g. "local:" on MacOS
+			continue;
+		}
 		if (ret < 0) {
-			SoapySDR_logf(SOAPY_SDR_WARNING, "Unable to scan %s: %li\n", it->c_str(), (long)ret);
+			char err[256];
+			iio_strerror(ret, err, sizeof(err));
+			SoapySDR_logf(SOAPY_SDR_WARNING, "Unable to scan \"%s\": %li (%s)\n", it->c_str(), (long)ret, err);
 			iio_context_info_list_free(info);
 			iio_scan_context_destroy(scan_ctx);
 			continue;
@@ -98,6 +103,7 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			if (args.count("hostname") == 0) continue;
 
 			//try to connect at the specified hostname
+			iio_context *ctx = nullptr;
 			ctx = iio_create_network_context(args.at("hostname").c_str());
 			if (ctx == nullptr) continue; //failed to connect
 			options["hostname"] = args.at("hostname");
@@ -107,10 +113,11 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 			options["label"] = label_str.str();
 
 			results.push_back(options);
-			if (ctx != nullptr) iio_context_destroy(ctx);
+			iio_context_destroy(ctx);
 
 		} else {
 			for (int i = 0; i < ret; i++) {
+				iio_context *ctx = nullptr;
 				ctx = iio_create_context_from_uri(iio_context_info_get_uri(info[i]));
 				if (ctx != nullptr) {
 					options["uri"] = std::string(iio_context_info_get_uri(info[i]));
@@ -132,7 +139,7 @@ static std::vector<SoapySDR::Kwargs> find_PlutoSDR(const SoapySDR::Kwargs &args)
 						}
 					}
 
-					if (ctx != nullptr) iio_context_destroy(ctx);
+					iio_context_destroy(ctx);
 				}
 
 			}
