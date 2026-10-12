@@ -47,6 +47,7 @@ class rx_streamer {
 		const iio_device  *dev;
 
 		size_t buffer_size;
+		bool bufflen_given = false;
 		size_t byte_offset;
 		size_t items_in_buffer;
 		iio_buffer  *buf;
@@ -80,6 +81,7 @@ class tx_streamer {
 		size_t items_in_buf;
 		bool direct_copy;
 		size_t buffer_size;
+		bool bufflen_given = false;
 		size_t mtu_size;
 
 };
