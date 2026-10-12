@@ -9,6 +9,9 @@
 
 //TODO: Need to be a power of 2 for maximum efficiency ?
 # define DEFAULT_RX_BUFFER_SIZE (1 << 16)
+# define HIGH_RX_SAMPLE_RATE 10e6
+# define MIN_RX_BUFFER_SECONDS 0.025
+# define MAX_DOUBLED_RX_BUFFER_SIZE (1 << 19)
 
 
 std::vector<std::string> SoapyPlutoSDR::getStreamFormats(const int direction, const size_t channel) const
@@ -285,6 +288,17 @@ void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
     int power_of_2_nb_samples = 0;
 
     while (rounded_nb_samples_per_call > (1 << power_of_2_nb_samples)) {
+        power_of_2_nb_samples++;
+    }
+
+    //At 13 to 15 Msps, 262144-sample buffers (under 25 ms) lost samples over
+    //the network in my tests (up to ~1% at 15 Msps on gigabit Ethernet), with
+    //no overflow reported; 524288-sample buffers lost none. Above 10 Msps,
+    //double buffers under 25 ms, at the cost of up to one buffer of latency,
+    //capped to stay in the band tested (10.49 to 15.73 Msps).
+    if (samplerate > HIGH_RX_SAMPLE_RATE &&
+        (1 << power_of_2_nb_samples) < MIN_RX_BUFFER_SECONDS * samplerate &&
+        (2 << power_of_2_nb_samples) <= MAX_DOUBLED_RX_BUFFER_SIZE) {
         power_of_2_nb_samples++;
     }
 
