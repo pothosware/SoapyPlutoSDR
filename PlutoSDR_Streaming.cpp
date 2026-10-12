@@ -272,6 +272,11 @@ int SoapyPlutoSDR::readStreamStatus(
 
 void rx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
 
+    //A buffer size given with "bufflen" outlasts sample rate changes.
+    if (bufflen_given) {
+        return;
+    }
+
     //Adapt buffer size (= MTU) as a tradeoff to minimize readStream overhead but at
     //the same time allow realtime applications. Keep it a power of 2 which seems to be better.
     //so try to target very roughly 60fps [30 .. 100] readStream calls / s for realtime applications.
@@ -330,6 +335,7 @@ rx_streamer::rx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 			if (bufferLength > 0) {
 				this->set_buffer_size(bufferLength);
 				this->set_mtu_size(this->buffer_size);
+				bufflen_given = true;
 			}
 		}
 		catch (const std::invalid_argument &){}
@@ -614,6 +620,7 @@ tx_streamer::tx_streamer(const iio_device *_dev, const plutosdrStreamFormat _for
 			if (bufferLength > 0) {
 				this->set_buffer_size(bufferLength);
 				this->set_mtu_size(this->buffer_size);
+				bufflen_given = true;
 			}
 		}
 		catch (const std::invalid_argument &){}
@@ -642,6 +649,11 @@ tx_streamer::~tx_streamer(){
 }
 
 void tx_streamer::set_buffer_size_by_samplerate(const size_t samplerate) {
+
+    //A buffer size given with "bufflen" outlasts sample rate changes.
+    if (bufflen_given) {
+        return;
+    }
 
     // The original buffer size of 4096 is not enough for a full duplex stream at sample rates above 1 Msps
 	// Avoid samples getting dropped in the TX stream by setting a high enough buffer size.
