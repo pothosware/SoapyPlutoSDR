@@ -1,3 +1,10 @@
+Release 0.2.4 (2026-10-20)
+==========================
+
+- Close remaining streams during device teardown (#81)
+- Double the automatic RX buffer at 10.5 to 15.7 Msps (#79)
+- Keep a "bufflen" buffer size across sample rate changes (#78)
+
 Release 0.2.3 (2026-10-10)
 ==========================
 
