@@ -3,12 +3,12 @@
 #include <ad9361.h>
 #endif
 
-static iio_context *ctx = nullptr; 
+static iio_context *ctx = nullptr;
+static int ctx_instances = 0;
 
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
-
 	gainMode = false;
 
 	if (args.count("label") != 0)
@@ -44,6 +44,7 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
 	this->setGainMode(SOAPY_SDR_RX, 0, false);
 	this->setAntenna(SOAPY_SDR_TX, 0, "A");
+    ctx_instances++;
 }
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
@@ -67,8 +68,10 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
 	}
+	
+	ctx_instances--;
 
-	if(ctx)
+	if(ctx && ctx_instances < 1)
 	{
 		iio_context_destroy(ctx);
 		ctx = nullptr;
