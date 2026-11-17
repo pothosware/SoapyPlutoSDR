@@ -3,12 +3,13 @@
 #include <ad9361.h>
 #endif
 
-static iio_context *ctx = nullptr; 
+static iio_context *ctx = nullptr;
+static int ctx_instances = 0;
 
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
-
+    ctx_instances++;
 	gainMode = false;
 
 	if (args.count("label") != 0)
@@ -48,6 +49,7 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
+    ctx_instances--;
     // Close any remaining streams while the IIO context is still valid.
     if (this->rx_stream) {
         this->closeStream(reinterpret_cast<SoapySDR::Stream *>(this->rx_stream.get()));
@@ -68,7 +70,7 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
 	}
 
-	if(ctx)
+	if(ctx && ctx_instances < 1)
 	{
 		iio_context_destroy(ctx);
 		ctx = nullptr;
