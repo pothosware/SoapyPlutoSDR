@@ -9,7 +9,6 @@ static int ctx_instances = 0;
 SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	dev(nullptr), rx_dev(nullptr),tx_dev(nullptr), decimation(false), interpolation(false), rx_stream(nullptr)
 {
-    ctx_instances++;
 	gainMode = false;
 
 	if (args.count("label") != 0)
@@ -45,11 +44,11 @@ SoapyPlutoSDR::SoapyPlutoSDR( const SoapySDR::Kwargs &args ):
 	this->setAntenna(SOAPY_SDR_RX, 0, "A_BALANCED");
 	this->setGainMode(SOAPY_SDR_RX, 0, false);
 	this->setAntenna(SOAPY_SDR_TX, 0, "A");
+    ctx_instances++;
 }
 
 SoapyPlutoSDR::~SoapyPlutoSDR(void){
 
-    ctx_instances--;
     // Close any remaining streams while the IIO context is still valid.
     if (this->rx_stream) {
         this->closeStream(reinterpret_cast<SoapySDR::Stream *>(this->rx_stream.get()));
@@ -69,6 +68,8 @@ SoapyPlutoSDR::~SoapyPlutoSDR(void){
 		iio_channel_attr_read_longlong(iio_device_find_channel(dev, "voltage0", true),"sampling_frequency",&samplerate);
 		iio_channel_attr_write_longlong(iio_device_find_channel(tx_dev, "voltage0", true),"sampling_frequency", samplerate);
 	}
+	
+	ctx_instances--;
 
 	if(ctx && ctx_instances < 1)
 	{
